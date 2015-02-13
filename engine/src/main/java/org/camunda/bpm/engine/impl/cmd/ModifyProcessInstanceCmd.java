@@ -15,6 +15,7 @@ package org.camunda.bpm.engine.impl.cmd;
 
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,9 +31,9 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
+import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
-import org.camunda.bpm.engine.runtime.Execution;
 
 /**
  * @author Thorben Lindhauer
@@ -53,10 +54,19 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     ActivityInstance processInstanceTree = new GetActivityInstanceCmd(processInstanceId).execute(commandContext);
     ActivityInstanceLookup treeLookup = new ActivityInstanceLookup(processInstanceTree);
 
+    DeploymentCache deploymentCache = Context
+        .getProcessEngineConfiguration()
+        .getDeploymentCache();
+    ProcessDefinitionEntity processDefinition = deploymentCache
+        .findDeployedProcessDefinitionById(processInstanceTree.getProcessDefinitionId());
+
     // 1. collect executions to keep
-    Set<String> activitiesToInstantiate = builder.getActivitiesToStartBefore();
+    Set<String> activityIdsToInstantiate = builder.getActivitiesToStartBefore();
+
+    Map<String, ActivityImpl> activitiesToInstantiate = resolveActivities(processDefinition, activityIdsToInstantiate);
     // TODO: add start after activities here
-    Set<String> executionsRequiredForInstantiation = executionsToKeep(commandContext, treeLookup, activitiesToInstantiate);
+    Map<String, String> activityAncestorMapping = executionsToKeep(commandContext, treeLookup, activitiesToInstantiate);
+    Set<String> ancestorsToKeep = new HashSet<String>(activityAncestorMapping.values());
 
     // 2. determine top-most executions to remove
     // TODO: the result should never contain the scope execution in which scope we want to
@@ -65,7 +75,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
         commandContext,
         treeLookup,
         builder.getActivityInstancesToCancel(),
-        executionsRequiredForInstantiation);
+        ancestorsToKeep);
 
     // 3. remove executions
     for (String executionId : removableExecutions) {
@@ -77,32 +87,108 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     }
 
     // 4. start new
+    instantiate(commandContext, activitiesToInstantiate, activityAncestorMapping);
 
     return null;
   }
 
-  protected Set<String> executionsToKeep(CommandContext commandContext,
-      ActivityInstanceLookup activityInstanceTree, Set<String> activityInstantiations) {
-    DeploymentCache deploymentCache = Context
-        .getProcessEngineConfiguration()
-        .getDeploymentCache();
+  protected Map<String, ActivityImpl> resolveActivities(ProcessDefinitionEntity processDefinition, Set<String> activityIds) {
+    Map<String, ActivityImpl> activities = new HashMap<String, ActivityImpl>();
 
-    ProcessDefinitionEntity processDefinition = deploymentCache
-        .findDeployedProcessDefinitionById(activityInstanceTree.getRootInstance().getProcessDefinitionId());
-
-    Set<String> executionsToKeep = new HashSet<String>();
-
-    for (String activityId : activityInstantiations) {
+    for (String activityId : activityIds) {
       ActivityImpl activity = processDefinition.findActivity(activityId);
+      ensureNotNull("Cannot find activity " + activityId + " in process definition " + processDefinition.getId(),
+          "activityId", activity);
+      activities.put(activityId, activity);
+    }
+
+    return activities;
+  }
+
+  protected void instantiate(CommandContext commandContext, Map<String, ActivityImpl> activitiesToInstantiate,
+      Map<String, String> ancestorMapping) {
+
+    for (String activityId : activitiesToInstantiate.keySet()) {
+      ActivityImpl activity = activitiesToInstantiate.get(activityId);
+      String ancestorExecutionId = ancestorMapping.get(activityId);
+
+      ExecutionEntity ancestor = commandContext.getDbEntityManager().getCachedEntity(ExecutionEntity.class, ancestorExecutionId);
+
+      // bottom up stack of activities to activity of ancestor execution
+      List<ActivityImpl> activityStackToInstantiate = getActivitiesToInstantiate(ancestor, activity);
+
+      // iterate in top down fashion and remove those list elements for which executions already exist
+      for (int i = activityStackToInstantiate.size() - 1; i >= 0; i--) {
+        ExecutionEntity childForActivity = getChildExecutionForActivity(ancestor, activityStackToInstantiate.get(i));
+
+        if (childForActivity != null) {
+          ancestor = childForActivity;
+          activityStackToInstantiate.remove(i);
+        } else {
+          break;
+        }
+      }
+
+      ancestor.setActivities((List<PvmActivity>) activityStackToInstantiate);
+
+      ancestor.executeActivity(activity);
+//      ExecutionEntity lowestParentExecution = findLowestParentExecution(ancestor, activity);
+
+      // TODO: start the activity from the lowest parent
+    }
+  }
+
+  protected ExecutionEntity getChildExecutionForActivity(ExecutionEntity execution, ActivityImpl activity) {
+    for (ExecutionEntity child : execution.getExecutions()) {
+      if (child.getActivity() == null) {
+        ExecutionEntity childExecution = getChildExecutionForActivity(child, activity);
+        if (childExecution != null) {
+          return childExecution;
+        }
+      }
+
+      if (child.getActivity() == activity) {
+        return child;
+      }
+    }
+
+    return null;
+  }
+
+  protected List<ActivityImpl> getActivitiesToInstantiate(ExecutionEntity ancestorExecution, ActivityImpl activity) {
+    ensureNotNull("ancestorActivity", ancestorExecution.getActivity());
+
+    List<ActivityImpl> bottomUpScopes = new ArrayList<ActivityImpl>();
+
+    ActivityImpl currentScopeActivity = activity;
+    while (currentScopeActivity != null && currentScopeActivity != ancestorExecution.getActivity()) {
+      bottomUpScopes.add(currentScopeActivity);
+      currentScopeActivity = currentScopeActivity.getParentScopeActivity();
+    }
+
+    return bottomUpScopes;
+  }
+
+  /**
+   * maps activity id -> ancestor execution id
+   */
+  protected Map<String, String> executionsToKeep(CommandContext commandContext,
+      ActivityInstanceLookup activityInstanceTree, Map<String, ActivityImpl> activityInstantiations) {
+    Map<String, String> executionsToKeep = new HashMap<String, String>();
+
+    for (String activityId : activityInstantiations.keySet()) {
+      ActivityImpl activity = activityInstantiations.get(activityId);
       ActivityInstance parentActivityInstance = findAncestorActivityInstance(activityInstanceTree, activity);
-      String rootExecution = getRootExecution(commandContext, parentActivityInstance.getExecutionIds());
-      executionsToKeep.add(rootExecution);
+      String rootExecution = getRootExecution(commandContext, parentActivityInstance);
+      executionsToKeep.put(activityId, rootExecution);
     }
 
     return executionsToKeep;
   }
 
-  protected String getRootExecution(CommandContext commandContext, String[] executionIds) {
+  protected String getRootExecution(CommandContext commandContext, ActivityInstance activityInstance) {
+    String[] executionIds = activityInstance.getExecutionIds();
+
     if (executionIds.length == 1) {
       return executionIds[0];
     }
@@ -150,7 +236,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
     for (String instanceToCancel : activityInstanceCancellations) {
       ActivityInstance instance = treeLookup.getInstance(instanceToCancel);
-      String currentExecutionId = getRootExecution(commandContext, instance.getExecutionIds());
+      String currentExecutionId = getRootExecution(commandContext, instance);
 
       ExecutionEntity topMostDeletableExecution = commandContext
           .getDbEntityManager()
