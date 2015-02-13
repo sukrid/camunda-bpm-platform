@@ -129,9 +129,11 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
         }
       }
 
-      ancestor.setActivities((List<PvmActivity>) activityStackToInstantiate);
+      // TODO: this is quite a hack
+      List<PvmActivity> pvmActivities = new ArrayList<PvmActivity>(activityStackToInstantiate);
+      Collections.reverse(pvmActivities);
 
-      ancestor.executeActivity(activity);
+      ancestor.executeActivities(pvmActivities);
 //      ExecutionEntity lowestParentExecution = findLowestParentExecution(ancestor, activity);
 
       // TODO: start the activity from the lowest parent
@@ -156,7 +158,8 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
   }
 
   protected List<ActivityImpl> getActivitiesToInstantiate(ExecutionEntity ancestorExecution, ActivityImpl activity) {
-    ensureNotNull("ancestorActivity", ancestorExecution.getActivity());
+    // ancestorExecution.getActivity() can be null if it is the naked process instance (in which all other executions have been removed)
+//    ensureNotNull("ancestorActivity", ancestorExecution.getActivity());
 
     List<ActivityImpl> bottomUpScopes = new ArrayList<ActivityImpl>();
 

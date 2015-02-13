@@ -13,16 +13,29 @@
 
 package org.camunda.bpm.engine.impl.pvm.runtime;
 
+import java.util.List;
+
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 
 /**
  * @author Sebastian Menski
  */
 public class ExecutionStartContext {
 
+  protected List<PvmActivity> activityStack;
+
   public void executionStarted(CoreExecution execution) {
     ExecutionEntity executionEntity = (ExecutionEntity) execution;
     executionEntity.fireHistoricVariableInstanceCreateEvents();
+  }
+
+  public List<PvmActivity> getActivityStack() {
+    return activityStack;
+  }
+
+  public void setActivityStack(List<PvmActivity> activityStack) {
+    this.activityStack = activityStack;
   }
 }

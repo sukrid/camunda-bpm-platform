@@ -91,6 +91,9 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCancellationAndCreation() {
+    // TODO: The problem is here that the process instance execution gets deleted
+    // from the database although it should; this is due to tree compactation
+
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
 
     ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());

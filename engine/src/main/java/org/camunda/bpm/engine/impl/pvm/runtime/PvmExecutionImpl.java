@@ -24,6 +24,7 @@ import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmException;
+import org.camunda.bpm.engine.impl.pvm.PvmExecution;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessDefinition;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessInstance;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
@@ -309,7 +310,57 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
    * The most deeply nested activity is the last element in the list
    */
   public void executeActivities(List<PvmActivity> activityStack) {
+//    PvmExecutionImpl executionToTrigger = null;
+//    PvmExecutionImpl scopeExecution = this;
 
+//    for (PvmActivity activity : activityStack) {
+//      scopeExecution = scopeExecution.createExecution();
+//      scopeExecution.setActivity(activity);
+//      if (activity.isScope()) {
+//        scopeExecution.initialize();
+//      }
+//
+//      if (executionToTrigger == null) {
+//        executionToTrigger = scopeExecution;
+//      }
+//    }
+//
+//    if (executionToTrigger != null) {
+//      executionToTrigger.startContext = new ExecutionStartContext();
+//      executionToTrigger.startContext.setActivityStack(activityStack);
+//
+//      if (executionToTrigger.getActivity().getScope() == this.getActivity().getScope()) {
+//        // FIXME: the following line is a hack
+//        executionToTrigger.nextActivity = executionToTrigger.getActivity();
+//
+//        executionToTrigger.performOperation(PvmAtomicOperation.ACTIVITY_START_STACK_CONCURRENT);
+//
+//      } else {
+//        executionToTrigger.performOperation(PvmAtomicOperation.ACTIVITY_START_STACK);
+//
+//      }
+//    }
+    if (activityStack.isEmpty()) {
+      return;
+    }
+
+    this.startContext = new ExecutionStartContext();
+    this.startContext.setActivityStack(activityStack);
+
+    PvmActivity topMostActivity = activityStack.get(0);
+
+    if (this.getActivity() == null) {
+      // this covers the case in which all executions have been removed from the process instance
+      // TODO: is this always correct? What about concurrent roots? Can it happen that we call this with concurrent roots?
+      setActivity(topMostActivity);
+      performOperation(PvmAtomicOperation.ACTIVITY_START_STACK);
+    } else if (this.getActivity().getScope() == topMostActivity.getScope()) {
+      // TODO: perhaps the list that is the parameter of this method can be List<ActivityImpl>?
+      this.nextActivity = (ActivityImpl) topMostActivity;
+      performOperation(PvmAtomicOperation.ACTIVITY_START_STACK_CONCURRENT);
+    } else {
+      performOperation(PvmAtomicOperation.ACTIVITY_START_STACK);
+    }
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
