@@ -58,6 +58,8 @@ public class PvmAtomicOperationActivityStartStack extends PvmAtomicOperationActi
     List<PvmActivity> activityStack = executionStartContext.getActivityStack();
     if (activity == activityStack.get(0)) {
 
+      executionStartContext.executionStarted(execution);
+
       // TODO: this won't dispose a start context on a higher execution
       execution.disposeProcessInstanceStartContext();
 
@@ -77,6 +79,7 @@ public class PvmAtomicOperationActivityStartStack extends PvmAtomicOperationActi
 
         executionToUse.setActive(false); // Deactivate since we jump to a node further down the hierarchy
         executionToUse = executionToUse.createExecution();
+        executionToUse.initialize();
 //        executionToUse = executionToUse.getExecutions().get(0);
       }
       executionToUse.setActivity(activity);

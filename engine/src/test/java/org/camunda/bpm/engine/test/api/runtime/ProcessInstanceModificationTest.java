@@ -90,6 +90,32 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
   }
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
+  public void testCreationWithVariables() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("task2")
+      .setVariable("procInstVar", "procInstValue")
+      .setVariableLocal("localVar", "localValue")
+      .execute();
+
+    ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstance.getId());
+    assertNotNull(updatedTree);
+    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
+
+    assertEquals(2, updatedTree.getChildActivityInstances().length);
+
+    ActivityInstance task2Instance = getInstanceForActivity(updatedTree, "task2");
+    assertNotNull(task2Instance);
+    assertEquals(1, task2Instance.getExecutionIds().length);
+    String task2ExecutionId = task2Instance.getExecutionIds()[0];
+
+    assertEquals("procInstValue", runtimeService.getVariableLocal(processInstance.getId(), "procInstVar"));
+    assertEquals("localValue", runtimeService.getVariableLocal(task2ExecutionId, "localVar"));
+  }
+
+  @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCancellationAndCreation() {
     // TODO: The problem is here that the process instance execution gets deleted
     // from the database although it should; this is due to tree compactation

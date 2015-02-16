@@ -22,7 +22,12 @@ public interface ProcessInstanceModificationBuilder {
 
   ProcessInstanceModificationBuilder startBeforeActivity(String activityId);
 
+  ProcessInstanceModificationBuilder setVariable(String name, Object value);
+
+  ProcessInstanceModificationBuilder setVariableLocal(String name, Object value);
+
   void execute();
+
 
 
 }

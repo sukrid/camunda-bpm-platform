@@ -309,7 +309,8 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   /**
    * The most deeply nested activity is the last element in the list
    */
-  public void executeActivities(List<PvmActivity> activityStack) {
+  public void executeActivities(List<PvmActivity> activityStack,
+      Map<String, Object> variables, Map<String, Object> localVariables) {
 //    PvmExecutionImpl executionToTrigger = null;
 //    PvmExecutionImpl scopeExecution = this;
 
@@ -346,6 +347,8 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
     this.startContext = new ExecutionStartContext();
     this.startContext.setActivityStack(activityStack);
+    this.startContext.setVariables(variables);
+    this.startContext.setVariablesLocal(localVariables);
 
     PvmActivity topMostActivity = activityStack.get(0);
 

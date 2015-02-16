@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.ActivityInstantiationInstruction;
 import org.camunda.bpm.engine.impl.ProcessInstanceModificationBuilderImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
@@ -61,11 +62,12 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
         .findDeployedProcessDefinitionById(processInstanceTree.getProcessDefinitionId());
 
     // 1. collect executions to keep
-    Set<String> activityIdsToInstantiate = builder.getActivitiesToStartBefore();
+    List<ActivityInstantiationInstruction> activitiesToInstantiate = builder.getActivitiesToStartBefore();
+    Set<String> activityIdsToInstantiate = collectActivityIds(activitiesToInstantiate);
 
-    Map<String, ActivityImpl> activitiesToInstantiate = resolveActivities(processDefinition, activityIdsToInstantiate);
+    Map<String, ActivityImpl> activityMapping = resolveActivities(processDefinition, activityIdsToInstantiate);
     // TODO: add start after activities here
-    Map<String, String> activityAncestorMapping = executionsToKeep(commandContext, treeLookup, activitiesToInstantiate);
+    Map<String, String> activityAncestorMapping = executionsToKeep(commandContext, treeLookup, activityMapping);
     Set<String> ancestorsToKeep = new HashSet<String>(activityAncestorMapping.values());
 
     // 2. determine top-most executions to remove
@@ -80,16 +82,26 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     // 3. remove executions
     for (String executionId : removableExecutions) {
       ExecutionEntity execution = commandContext.getDbEntityManager().getCachedEntity(ExecutionEntity.class, executionId);
-      // TODO: what would be an appriopriate deletion reason? Should we also add there the activity instance
+      // TODO: what would be an appropriate deletion reason? Should we also add there the activity instance
       // id because of which this execution had to die?
       execution.deleteCascade("activity cancellation", true);
       // TODO: additional execution.remove() required?
     }
 
     // 4. start new
-    instantiate(commandContext, activitiesToInstantiate, activityAncestorMapping);
+    instantiate(commandContext, activitiesToInstantiate, activityMapping, activityAncestorMapping);
 
     return null;
+  }
+
+  // TODO: could be refactored into a container of instructions?!
+  protected Set<String> collectActivityIds(List<ActivityInstantiationInstruction> activitiesToInstantiate) {
+    Set<String> activityIds = new HashSet<String>();
+    for (ActivityInstantiationInstruction instruction : activitiesToInstantiate) {
+      activityIds.add(instruction.getActivityId());
+    }
+
+    return activityIds;
   }
 
   protected Map<String, ActivityImpl> resolveActivities(ProcessDefinitionEntity processDefinition, Set<String> activityIds) {
@@ -105,11 +117,14 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     return activities;
   }
 
-  protected void instantiate(CommandContext commandContext, Map<String, ActivityImpl> activitiesToInstantiate,
+  protected void instantiate(CommandContext commandContext,
+      List<ActivityInstantiationInstruction> activitiesToInstantiate,
+      Map<String, ActivityImpl> activityMapping,
       Map<String, String> ancestorMapping) {
 
-    for (String activityId : activitiesToInstantiate.keySet()) {
-      ActivityImpl activity = activitiesToInstantiate.get(activityId);
+    for (ActivityInstantiationInstruction instantiationInstruction : activitiesToInstantiate) {
+      String activityId = instantiationInstruction.getActivityId();
+      ActivityImpl activity = activityMapping.get(activityId);
       String ancestorExecutionId = ancestorMapping.get(activityId);
 
       ExecutionEntity ancestor = commandContext.getDbEntityManager().getCachedEntity(ExecutionEntity.class, ancestorExecutionId);
@@ -133,7 +148,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       List<PvmActivity> pvmActivities = new ArrayList<PvmActivity>(activityStackToInstantiate);
       Collections.reverse(pvmActivities);
 
-      ancestor.executeActivities(pvmActivities);
+      ancestor.executeActivities(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
 //      ExecutionEntity lowestParentExecution = findLowestParentExecution(ancestor, activity);
 
       // TODO: start the activity from the lowest parent

@@ -12,9 +12,15 @@
  */
 package org.camunda.bpm.engine.impl;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
+import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.cmd.ModifyProcessInstanceCmd;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
@@ -35,7 +41,8 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
   // TODO: this needs to be a more sophisticated data strucutre:
   // first, it is possible to instantiate the same activity twice (i.e. no set)
   // second, it should be possible to add variables to an activity
-  protected Set<String> activitiesToStartBefore = new HashSet<String>();
+  protected List<ActivityInstantiationInstruction> activitiesToStartBefore = new ArrayList<ActivityInstantiationInstruction>();
+  protected ActivityInstantiationInstruction currentActivity;
 
   public ProcessInstanceModificationBuilderImpl(CommandExecutor commandExecutor, String processInstanceId) {
     this(processInstanceId);
@@ -57,7 +64,25 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
   }
 
   public ProcessInstanceModificationBuilder startBeforeActivity(String activityId) {
-    activitiesToStartBefore.add(activityId);
+    currentActivity = new ActivityInstantiationInstruction(activityId);
+    activitiesToStartBefore.add(currentActivity);
+    return this;
+  }
+
+
+  public ProcessInstanceModificationBuilder setVariable(String name, Object value) {
+    ensureNotNull(NotValidException.class, "Variable name must not be null", "name", name);
+    ensureNotNull(NotValidException.class, "No activity to start specified", "variable", currentActivity);
+
+    currentActivity.addVariable(name, value);
+    return this;
+  }
+
+  public ProcessInstanceModificationBuilder setVariableLocal(String name, Object value) {
+    ensureNotNull(NotValidException.class, "Variable name must not be null", "name", name);
+    ensureNotNull(NotValidException.class, "No activity to start specified", "variableLocal", currentActivity);
+
+    currentActivity.addVariableLocal(name, value);
     return this;
   }
 
@@ -86,7 +111,8 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
     return activityInstancesToCancel;
   }
 
-  public Set<String> getActivitiesToStartBefore() {
+  public List<ActivityInstantiationInstruction> getActivitiesToStartBefore() {
     return activitiesToStartBefore;
   }
+
 }

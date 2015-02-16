@@ -14,6 +14,7 @@
 package org.camunda.bpm.engine.impl.pvm.runtime;
 
 import java.util.List;
+import java.util.Map;
 
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -25,10 +26,19 @@ import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 public class ExecutionStartContext {
 
   protected List<PvmActivity> activityStack;
+  protected Map<String, Object> variables;
+  protected Map<String, Object> variablesLocal;
 
   public void executionStarted(CoreExecution execution) {
-    ExecutionEntity executionEntity = (ExecutionEntity) execution;
-    executionEntity.fireHistoricVariableInstanceCreateEvents();
+
+    if (execution instanceof ExecutionEntity) {
+      ExecutionEntity executionEntity = (ExecutionEntity) execution;
+      executionEntity.fireHistoricVariableInstanceCreateEvents();
+    }
+
+    // TODO: is this problematic with respect to the upper two lines?
+    execution.setVariables(variables);
+    execution.setVariablesLocal(variablesLocal);
   }
 
   public List<PvmActivity> getActivityStack() {
@@ -37,5 +47,13 @@ public class ExecutionStartContext {
 
   public void setActivityStack(List<PvmActivity> activityStack) {
     this.activityStack = activityStack;
+  }
+
+  public void setVariables(Map<String, Object> variables) {
+    this.variables = variables;
+  }
+
+  public void setVariablesLocal(Map<String, Object> variablesLocal) {
+    this.variablesLocal = variablesLocal;
   }
 }
