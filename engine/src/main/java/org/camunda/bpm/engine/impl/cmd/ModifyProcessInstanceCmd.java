@@ -34,6 +34,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
+import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 
 /**
@@ -122,6 +123,8 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       Map<String, ActivityImpl> activityMapping,
       Map<String, String> ancestorMapping) {
 
+    List<PvmExecutionImpl> triggerExecutions = new ArrayList<PvmExecutionImpl>();
+
     for (ActivityInstantiationInstruction instantiationInstruction : activitiesToInstantiate) {
       String activityId = instantiationInstruction.getActivityId();
       ActivityImpl activity = activityMapping.get(activityId);
@@ -148,10 +151,24 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       List<PvmActivity> pvmActivities = new ArrayList<PvmActivity>(activityStackToInstantiate);
       Collections.reverse(pvmActivities);
 
-      ancestor.executeActivities(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
+      ancestor.initStack(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
+
+      // TODO: this is a huge hack to get ahold of the newly created execution
+      PvmExecutionImpl triggerExecution = ancestor;
+      if (!ancestor.getExecutions().isEmpty()) {
+        triggerExecution = ancestor.getExecutions().get(ancestor.getExecutions().size() - 1);
+      }
+
+      triggerExecutions.add(triggerExecution);
+
+//      ancestor.executeActivities(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
 //      ExecutionEntity lowestParentExecution = findLowestParentExecution(ancestor, activity);
 
       // TODO: start the activity from the lowest parent
+    }
+
+    for (PvmExecutionImpl execution : triggerExecutions) {
+      execution.startStack();
     }
   }
 
