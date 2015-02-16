@@ -13,6 +13,7 @@
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
 import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
@@ -21,6 +22,11 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
  *
  */
 public class PvmAtomicOperationActivityStartStack extends PvmAtomicOperationActivityInstanceStart {
+
+  public boolean isAsync(PvmExecutionImpl execution) {
+    ActivityImpl activity = execution.getActivity();
+    return activity.isAsyncBefore();
+  }
 
   public String getCanonicalName() {
     return "activity-stack-start";

@@ -33,23 +33,22 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
     ExecutionStartContext executionStartContext = execution.getExecutionStartContext();
     if (executionStartContext==null) {
       // The ProcessInstanceStartContext is set on the process instance / parent execution - grab it from there:
-      PvmExecutionImpl executionToUse = execution;
-      while (executionStartContext==null) {
-        executionToUse = execution.getParent();
-        executionStartContext = executionToUse.getExecutionStartContext();
-      }
+      PvmExecutionImpl startContextExecution = getStartContextExecution(execution);
+      executionStartContext = startContextExecution.getExecutionStartContext();
     }
 
     // TODO: where to dispose the start context? not here, because of recursive instantiation but where?
 
     PvmActivity activity = execution.getActivity();
     List<PvmActivity> activityStack = executionStartContext.getActivityStack();
-    if (activity == activityStack.get(0)) {
+    if (activity == activityStack.get(activityStack.size() - 1)) {
 
-      executionStartContext.executionStarted(execution);
+//      executionStartContext.executionStarted(execution);
 
       // TODO: this won't dispose a start context on a higher execution
-      execution.disposeProcessInstanceStartContext();
+      PvmExecutionImpl startContextExecution = getStartContextExecution(execution);
+      startContextExecution.disposeExecutionStartContext();
+      executionStartContext.applyVariables(execution);
 
       // TODO: this does not respect asyncBefore; it's only treated in transition_create_scope
       // but we can't call it here
@@ -77,6 +76,14 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
 
   public boolean isAsync(PvmExecutionImpl instance) {
     return false;
+  }
+
+  public PvmExecutionImpl getStartContextExecution(PvmExecutionImpl execution) {
+    PvmExecutionImpl parent = execution;
+    while (parent.getExecutionStartContext() == null) {
+      parent = parent.getParent();
+    }
+    return parent;
   }
 
 }

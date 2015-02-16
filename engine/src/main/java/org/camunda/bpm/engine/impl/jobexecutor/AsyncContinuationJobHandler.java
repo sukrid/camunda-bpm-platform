@@ -41,9 +41,13 @@ public class AsyncContinuationJobHandler implements JobHandler {
     supportedOperations.put(PvmAtomicOperation.TRANSITION_CREATE_SCOPE.getCanonicalName(), PvmAtomicOperation.TRANSITION_CREATE_SCOPE);
     // async before start event
     supportedOperations.put(PvmAtomicOperation.PROCESS_START.getCanonicalName(), PvmAtomicOperation.PROCESS_START);
+    // async before on activity start stack
+    supportedOperations.put(PvmAtomicOperation.ACTIVITY_START_STACK.getCanonicalName(), PvmAtomicOperation.ACTIVITY_START_STACK);
+
     // async after activity depending if an outgoing sequence flow exists
     supportedOperations.put(PvmAtomicOperation.TRANSITION_NOTIFY_LISTENER_TAKE.getCanonicalName(), PvmAtomicOperation.TRANSITION_NOTIFY_LISTENER_TAKE);
     supportedOperations.put(PvmAtomicOperation.ACTIVITY_END.getCanonicalName(), PvmAtomicOperation.ACTIVITY_END);
+
   }
 
   public String getType() {

@@ -12,10 +12,19 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
+import java.util.Collections;
+import java.util.List;
+
+import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
+import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
 
 /**
  * @author Thorben Lindhauer
@@ -23,8 +32,14 @@ import org.camunda.bpm.engine.test.Deployment;
  */
 public class ProcessInstanceModificationTest extends PluggableProcessEngineTestCase {
 
+  // TODO: separate the individual aspects (history, listener, events, variables, basics) into individual classes
+
   protected static final String PARALLEL_GATEWAY_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.parallelGateway.bpmn20.xml";
   protected static final String EXCLUSIVE_GATEWAY_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.exclusiveGateway.bpmn20.xml";
+  protected static final String EXCLUSIVE_GATEWAY_ASYNC_TASK_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.exclusiveGatewayAsyncTask.bpmn20.xml";
+  protected static final String SUBPROCESS_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.subprocess.bpmn20.xml";
+  protected static final String SUBPROCESS_LISTENER_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.subprocessListeners.bpmn20.xml";
+
 
   // TODO: improve assertions on activity instance trees
 
@@ -63,7 +78,7 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCreation() {
-    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exclusiveGateway");
 
     runtimeService
       .createProcessInstanceModification(processInstance.getId())
@@ -76,17 +91,117 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
 
     assertEquals(2, updatedTree.getChildActivityInstances().length);
 
-    ActivityInstance task1Instance = getInstanceForActivity(updatedTree, "task1");
+    ActivityInstance task1Instance = getChildInstanceForActivity(updatedTree, "task1");
     assertNotNull(task1Instance);
     assertEquals(0, task1Instance.getChildActivityInstances().length);
     assertEquals("task1", task1Instance.getActivityId());
     assertEquals(updatedTree.getId(), task1Instance.getParentActivityInstanceId());
 
-    ActivityInstance task2Instance = getInstanceForActivity(updatedTree, "task2");
+    ActivityInstance task2Instance = getChildInstanceForActivity(updatedTree, "task2");
     assertNotNull(task2Instance);
     assertEquals(0, task2Instance.getChildActivityInstances().length);
     assertEquals("task2", task2Instance.getActivityId());
     assertEquals(updatedTree.getId(), task2Instance.getParentActivityInstanceId());
+  }
+
+  @Deployment(resources = EXCLUSIVE_GATEWAY_ASYNC_TASK_PROCESS)
+  public void testCreationAsync() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exclusiveGateway");
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("task2")
+      .execute();
+
+    // the task does not yet exist because it is started asynchronously
+    Task task = taskService.createTaskQuery().taskDefinitionKey("task2").singleResult();
+    assertNull(task);
+
+    Job job = managementService.createJobQuery().singleResult();
+    assertNotNull(job);
+
+    executeAvailableJobs();
+    task = taskService.createTaskQuery().taskDefinitionKey("task2").singleResult();
+    assertNotNull(task);
+  }
+
+  @Deployment(resources = SUBPROCESS_PROCESS)
+  public void testCreationInNestedScope() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subprocess");
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("innerTask")
+      .execute();
+
+    ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstance.getId());
+    assertNotNull(updatedTree);
+    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
+
+    assertEquals(2, updatedTree.getChildActivityInstances().length);
+
+    ActivityInstance outerTaskInstance = getChildInstanceForActivity(updatedTree, "outerTask");
+    assertNotNull(outerTaskInstance);
+    assertEquals(0, outerTaskInstance.getChildActivityInstances().length);
+    assertEquals("outerTask", outerTaskInstance.getActivityId());
+
+    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
+    assertNotNull(subProcessInstance);
+    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
+    assertEquals("subProcess", subProcessInstance.getActivityId());
+
+    ActivityInstance innerTaskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask");
+    assertNotNull(innerTaskInstance);
+    assertEquals(0, innerTaskInstance.getChildActivityInstances().length);
+    assertEquals("innerTask", innerTaskInstance.getActivityId());
+  }
+
+  public void testCreationEventSubscription() {
+    // TODO implement
+  }
+
+  @Deployment(resources = SUBPROCESS_LISTENER_PROCESS)
+  public void testListenerInvocation() {
+    RecorderExecutionListener.clear();
+
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey(
+        "subprocess",
+        Collections.<String, Object>singletonMap("listener", new RecorderExecutionListener()));
+
+    assertTrue(RecorderExecutionListener.getRecordedEvents().isEmpty());
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("innerTask")
+      .execute();
+
+    List<RecordedEvent> recordedEvents = RecorderExecutionListener.getRecordedEvents();
+    assertEquals(2, recordedEvents.size());
+
+    ActivityInstance activityInstanceTree = runtimeService.getActivityInstance(processInstance.getId());
+    ActivityInstance subprocessInstance = getChildInstanceForActivity(activityInstanceTree, "subProcess");
+    ActivityInstance innerTaskInstance = getChildInstanceForActivity(subprocessInstance, "innerTask");
+
+    RecordedEvent firstEvent = recordedEvents.get(0);
+    RecordedEvent secondEvent = recordedEvents.get(1);
+
+    assertEquals("subProcess", firstEvent.getActivityId());
+    assertEquals(subprocessInstance.getId(), firstEvent.getActivityInstanceId());
+    assertEquals(ExecutionListener.EVENTNAME_START, secondEvent.getEventName());
+
+    assertEquals("innerTask", secondEvent.getActivityId());
+    assertEquals(innerTaskInstance.getId(), secondEvent.getActivityInstanceId());
+    assertEquals(ExecutionListener.EVENTNAME_START, secondEvent.getEventName());
+
+    RecorderExecutionListener.clear();
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .cancelActivityInstance(innerTaskInstance.getId())
+      .execute();
+
+    // this is due to skipCustomListeners configuration on deletion
+    assertTrue(RecorderExecutionListener.getRecordedEvents().isEmpty());
   }
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
@@ -106,7 +221,7 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
 
     assertEquals(2, updatedTree.getChildActivityInstances().length);
 
-    ActivityInstance task2Instance = getInstanceForActivity(updatedTree, "task2");
+    ActivityInstance task2Instance = getChildInstanceForActivity(updatedTree, "task2");
     assertNotNull(task2Instance);
     assertEquals(1, task2Instance.getExecutionIds().length);
     String task2ExecutionId = task2Instance.getExecutionIds()[0];
@@ -115,10 +230,50 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
     assertEquals("localValue", runtimeService.getVariableLocal(task2ExecutionId, "localVar"));
   }
 
+  // TODO: move this test case somewhere so that it is only executed with appropriate
+  // history level
+  @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
+  public void testCreationWithVariablesInHistory() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("task2")
+      .setVariable("procInstVar", "procInstValue")
+      .setVariableLocal("localVar", "localValue")
+      .execute();
+
+    ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstance.getId());
+    ActivityInstance task2Instance = getChildInstanceForActivity(updatedTree, "task2");
+
+    HistoricVariableInstance procInstVariable = historyService.createHistoricVariableInstanceQuery()
+      .variableName("procInstVar")
+      .singleResult();
+
+    assertNotNull(procInstVariable);
+    assertEquals(updatedTree.getId(), procInstVariable.getActivityInstanceId());
+    assertEquals("procInstVar", procInstVariable.getName());
+    assertEquals("procInstValue", procInstVariable.getValue());
+
+    HistoricVariableInstance localVariable = historyService.createHistoricVariableInstanceQuery()
+      .variableName("localVar")
+      .singleResult();
+
+    // TODO: problem is that we already fire the history events on variable creation in the INIT operation
+    // but should be in the START operation. Could be implemented via ExecutionStartContext
+    assertNotNull(localVariable);
+    assertEquals(task2Instance.getId(), localVariable.getActivityInstanceId());
+    assertEquals("localVar", localVariable.getName());
+    assertEquals("localValue", localVariable.getValue());
+
+  }
+
+  // TODO: test activity instance id on deletion
+
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCancellationAndCreation() {
     // TODO: The problem is here that the process instance execution gets deleted
-    // from the database although it should; this is due to tree compactation
+    // from the database although it should not; this is due to tree compactation
 
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
 
@@ -140,14 +295,18 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
   }
 
   public String getInstanceIdForActivity(ActivityInstance activityInstance, String activityId) {
-    ActivityInstance instance = getInstanceForActivity(activityInstance, activityId);
+    ActivityInstance instance = getChildInstanceForActivity(activityInstance, activityId);
     if (instance != null) {
       return instance.getId();
     }
     return null;
   }
 
-  public ActivityInstance getInstanceForActivity(ActivityInstance activityInstance, String activityId) {
+  /**
+   * Important that only the direct children are considered here. If you change this,
+   * the test assertions are not as tight anymore.
+   */
+  public ActivityInstance getChildInstanceForActivity(ActivityInstance activityInstance, String activityId) {
     for (ActivityInstance childInstance : activityInstance.getChildActivityInstances()) {
       if (childInstance.getActivityId().equals(activityId)) {
         return childInstance;

@@ -35,8 +35,11 @@ public class ExecutionStartContext {
       ExecutionEntity executionEntity = (ExecutionEntity) execution;
       executionEntity.fireHistoricVariableInstanceCreateEvents();
     }
+  }
 
-    // TODO: is this problematic with respect to the upper two lines?
+  // TODO: a hack around the fact that this won't provide history if
+  // the start context is not disposed yet
+  public void applyVariables(CoreExecution execution) {
     execution.setVariables(variables);
     execution.setVariablesLocal(variablesLocal);
   }

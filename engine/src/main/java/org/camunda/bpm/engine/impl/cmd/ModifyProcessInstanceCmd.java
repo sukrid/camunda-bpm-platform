@@ -247,11 +247,10 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
   protected ActivityInstance findAncestorActivityInstance(ActivityInstanceLookup tree, ActivityImpl activity) {
     ActivityImpl parentScope = activity.getParentScopeActivity();
 
-
     while (parentScope != null) {
       Set<ActivityInstance> parentScopeInstances = tree.getInstancesForActivity(parentScope.getId());
 
-      if (parentScopeInstances.isEmpty()) {
+      if (parentScopeInstances == null || parentScopeInstances.isEmpty()) {
         parentScope = parentScope.getParentScopeActivity();
       } else if (parentScopeInstances.size() == 1) {
         return parentScopeInstances.iterator().next();

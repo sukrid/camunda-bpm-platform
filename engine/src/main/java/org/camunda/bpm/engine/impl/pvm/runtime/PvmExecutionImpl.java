@@ -306,6 +306,9 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     }
   }
 
+  /**
+   * The most deeply nested activity is the last element in the list
+   */
   public void initStack(List<PvmActivity> activityStack,
       Map<String, Object> variables, Map<String, Object> localVariables) {
     if (activityStack.isEmpty()) {
