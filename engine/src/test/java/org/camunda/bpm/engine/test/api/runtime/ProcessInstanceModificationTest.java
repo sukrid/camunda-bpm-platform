@@ -39,6 +39,7 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
   protected static final String EXCLUSIVE_GATEWAY_ASYNC_TASK_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.exclusiveGatewayAsyncTask.bpmn20.xml";
   protected static final String SUBPROCESS_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.subprocess.bpmn20.xml";
   protected static final String SUBPROCESS_LISTENER_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.subprocessListeners.bpmn20.xml";
+  protected static final String SUBPROCESS_BOUNDARY_EVENTS_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.subprocessBoundaryEvents.bpmn20.xml";
 
 
   // TODO: improve assertions on activity instance trees
@@ -156,8 +157,42 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
     assertEquals("innerTask", innerTaskInstance.getActivityId());
   }
 
+  // TODO: message event subscription test
+
+  @Deployment(resources = SUBPROCESS_BOUNDARY_EVENTS_PROCESS)
   public void testCreationEventSubscription() {
-    // TODO implement
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subprocess");
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("innerTask")
+      .execute();
+
+    // TODO: also assert that we have an additional execution for the inner timer
+
+    // then two timer jobs should have been created
+    assertEquals(2, managementService.createJobQuery().count());
+    Job innerJob = managementService.createJobQuery().activityId("innerTimer").singleResult();
+    assertNotNull(innerJob);
+    assertEquals(runtimeService.createExecutionQuery().activityId("innerTask").singleResult().getId(),
+        innerJob.getExecutionId());
+
+    Job outerJob = managementService.createJobQuery().activityId("outerTimer").singleResult();
+    assertNotNull(outerJob);
+    assertEquals(runtimeService.createExecutionQuery().activityId("subProcess").singleResult().getId(),
+        outerJob.getExecutionId());
+
+    // when executing the jobs
+    managementService.executeJob(innerJob.getId());
+
+    Task innerBoundaryTask = taskService.createTaskQuery().taskDefinitionKey("innerAfterBoundaryTask").singleResult();
+    assertNotNull(innerBoundaryTask);
+
+    managementService.executeJob(outerJob.getId());
+
+    Task outerBoundaryTask = taskService.createTaskQuery().taskDefinitionKey("outerAfterBoundaryTask").singleResult();
+    assertNotNull(outerBoundaryTask);
+
   }
 
   @Deployment(resources = SUBPROCESS_LISTENER_PROCESS)
@@ -206,7 +241,7 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCreationWithVariables() {
-    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exclusiveGateway");
 
     runtimeService
       .createProcessInstanceModification(processInstance.getId())
@@ -234,7 +269,7 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
   // history level
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCreationWithVariablesInHistory() {
-    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exclusiveGateway");
 
     runtimeService
       .createProcessInstanceModification(processInstance.getId())
@@ -275,7 +310,7 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
     // TODO: The problem is here that the process instance execution gets deleted
     // from the database although it should not; this is due to tree compactation
 
-    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("parallelGateway");
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exclusiveGateway");
 
     ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
 

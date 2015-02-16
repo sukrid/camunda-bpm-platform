@@ -66,10 +66,10 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
 
         executionToUse.setActive(false); // Deactivate since we jump to a node further down the hierarchy
         executionToUse = executionToUse.createExecution();
-        executionToUse.initialize();
 //        executionToUse = executionToUse.getExecutions().get(0);
       }
       executionToUse.setActivity(activity);
+      executionToUse.initialize();
       executionToUse.performOperation(ACTIVITY_INIT_STACK);
     }
   }
