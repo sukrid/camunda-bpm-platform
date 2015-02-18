@@ -68,13 +68,13 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
     Map<String, ActivityImpl> activityMapping = resolveActivities(processDefinition, activityIdsToInstantiate);
     // TODO: add start after activities here
-    Map<String, String> activityAncestorMapping = executionsToKeep(commandContext, treeLookup, activityMapping);
+    Map<String, String> activityAncestorMapping = getExistingAncestorExecutions(commandContext, treeLookup, activityMapping);
     Set<String> ancestorsToKeep = new HashSet<String>(activityAncestorMapping.values());
 
     // 2. determine top-most executions to remove
     // TODO: the result should never contain the scope execution in which scope we want to
     // start a new activity (e.g. process instance in a one-execution process)
-    Set<String> removableExecutions = executionsToDelete(
+    Set<String> removableExecutions = getExecutionsToDelete(
         commandContext,
         treeLookup,
         builder.getActivityInstancesToCancel(),
@@ -90,7 +90,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     }
 
     // 4. start new
-    instantiate(commandContext, activitiesToInstantiate, activityMapping, activityAncestorMapping);
+    instantiateActivities(commandContext, activitiesToInstantiate, activityMapping, activityAncestorMapping);
 
     return null;
   }
@@ -118,7 +118,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     return activities;
   }
 
-  protected void instantiate(CommandContext commandContext,
+  protected void instantiateActivities(CommandContext commandContext,
       List<ActivityInstantiationInstruction> activitiesToInstantiate,
       Map<String, ActivityImpl> activityMapping,
       Map<String, String> ancestorMapping) {
@@ -160,11 +160,6 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       }
 
       triggerExecutions.add(triggerExecution);
-
-//      ancestor.executeActivities(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
-//      ExecutionEntity lowestParentExecution = findLowestParentExecution(ancestor, activity);
-
-      // TODO: start the activity from the lowest parent
     }
 
     for (PvmExecutionImpl execution : triggerExecutions) {
@@ -207,7 +202,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
   /**
    * maps activity id -> ancestor execution id
    */
-  protected Map<String, String> executionsToKeep(CommandContext commandContext,
+  protected Map<String, String> getExistingAncestorExecutions(CommandContext commandContext,
       ActivityInstanceLookup activityInstanceTree, Map<String, ActivityImpl> activityInstantiations) {
     Map<String, String> executionsToKeep = new HashMap<String, String>();
 
@@ -264,7 +259,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
   }
 
   // TODO: break this into multiple parts/methods?
-  protected Set<String> executionsToDelete(CommandContext commandContext, ActivityInstanceLookup treeLookup,
+  protected Set<String> getExecutionsToDelete(CommandContext commandContext, ActivityInstanceLookup treeLookup,
       Set<String> activityInstanceCancellations, Set<String> executionsToKeep) {
     Set<String> executionsToDelete = new HashSet<String>();
 

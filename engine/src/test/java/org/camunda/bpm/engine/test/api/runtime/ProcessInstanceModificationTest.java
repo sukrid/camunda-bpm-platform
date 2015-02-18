@@ -103,6 +103,8 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
     assertEquals(0, task2Instance.getChildActivityInstances().length);
     assertEquals("task2", task2Instance.getActivityId());
     assertEquals(updatedTree.getId(), task2Instance.getParentActivityInstanceId());
+
+    assertEquals(2, taskService.createTaskQuery().count());
   }
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_ASYNC_TASK_PROCESS)

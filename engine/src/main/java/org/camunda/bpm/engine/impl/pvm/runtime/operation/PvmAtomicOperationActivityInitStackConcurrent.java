@@ -23,7 +23,6 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 public class PvmAtomicOperationActivityInitStackConcurrent extends PvmAtomicOperationCreateConcurrentExecution {
 
   protected void concurrentExecutionCreated(PvmExecutionImpl propagatingExecution) {
-    propagatingExecution.initialize();
     propagatingExecution.performOperation(ACTIVITY_INIT_STACK);
   }
 

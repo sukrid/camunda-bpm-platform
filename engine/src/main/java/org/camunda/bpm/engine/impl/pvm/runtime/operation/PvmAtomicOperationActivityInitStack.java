@@ -41,6 +41,14 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
 
     PvmActivity activity = execution.getActivity();
     List<PvmActivity> activityStack = executionStartContext.getActivityStack();
+
+    if (activity.isScope()) {
+      execution.setActive(false);
+      execution.setActivity(null);
+      execution = execution.createExecution();
+      execution.setActivity(activity);
+    }
+
     if (activity == activityStack.get(activityStack.size() - 1)) {
 
 //      executionStartContext.executionStarted(execution);
@@ -60,17 +68,10 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
       activity = activityStack.get(index+1);
 
       // and search for the correct execution to set the Activity to
-      PvmExecutionImpl executionToUse = execution;
-      if (executionToUse.getActivity().isScope()) {
-        // TODO: is this required?
-
-        executionToUse.setActive(false); // Deactivate since we jump to a node further down the hierarchy
-        executionToUse = executionToUse.createExecution();
-//        executionToUse = executionToUse.getExecutions().get(0);
-      }
-      executionToUse.setActivity(activity);
-      executionToUse.initialize();
-      executionToUse.performOperation(ACTIVITY_INIT_STACK);
+      execution.setActivity(activity);
+      // TODO: initialize() must be called after async
+//      executionToUse.initialize();
+      execution.performOperation(ACTIVITY_INIT_STACK);
     }
   }
 

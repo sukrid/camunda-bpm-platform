@@ -25,7 +25,12 @@ public class PvmAtomicOperationActivityStartStack extends PvmAtomicOperationActi
 
   public boolean isAsync(PvmExecutionImpl execution) {
     ActivityImpl activity = execution.getActivity();
-    return activity.isAsyncBefore();
+    if (activity != null) {
+      return activity.isAsyncBefore();
+
+    } else {
+      return false;
+    }
   }
 
   public String getCanonicalName() {
