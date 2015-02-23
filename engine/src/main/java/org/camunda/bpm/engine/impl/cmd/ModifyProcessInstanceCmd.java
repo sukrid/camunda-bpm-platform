@@ -85,8 +85,16 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       ExecutionEntity execution = commandContext.getDbEntityManager().getCachedEntity(ExecutionEntity.class, executionId);
       // TODO: what would be an appropriate deletion reason? Should we also add there the activity instance
       // id because of which this execution had to die?
-      execution.deleteCascade("activity cancellation", true);
-      // TODO: additional execution.remove() required?
+      boolean deleteExecutionItself = !ancestorsToKeep.contains(execution.getId());
+
+      if (deleteExecutionItself) {
+        execution.deleteCascade("activity cancellation", true);
+      } else {
+        // TODO: should skip custom listeners
+        execution.cancelScope("activity cancellation");
+        // TODO: could the following be moved into execution.cancelScope?
+        execution.setActivity(null);
+      }
     }
 
     // 4. start new
