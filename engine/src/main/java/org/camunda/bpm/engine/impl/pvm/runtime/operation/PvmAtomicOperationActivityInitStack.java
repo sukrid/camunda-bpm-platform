@@ -14,7 +14,10 @@ package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
 import java.util.List;
 
+import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
+import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
+import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.ExecutionStartContext;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
@@ -28,50 +31,71 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
     return "activity-stack-init";
   }
 
-  public void execute(PvmExecutionImpl execution) {
-
+  protected ExecutionStartContext getExecutionStartContext(PvmExecutionImpl execution) {
     ExecutionStartContext executionStartContext = execution.getExecutionStartContext();
     if (executionStartContext==null) {
-      // The ProcessInstanceStartContext is set on the process instance / parent execution - grab it from there:
       PvmExecutionImpl startContextExecution = getStartContextExecution(execution);
       executionStartContext = startContextExecution.getExecutionStartContext();
     }
+
+    return executionStartContext;
+  }
+
+  protected void disposeStartContext(PvmExecutionImpl execution) {
+    PvmExecutionImpl parent = execution;
+    while (parent != null && parent.getExecutionStartContext() != null) {
+      parent.disposeExecutionStartContext();
+      parent = parent.getParent();
+    }
+  }
+
+  public void execute(PvmExecutionImpl execution) {
+    ExecutionStartContext executionStartContext = getExecutionStartContext(execution);
 
     // TODO: where to dispose the start context? not here, because of recursive instantiation but where?
 
     PvmActivity activity = execution.getActivity();
     List<PvmActivity> activityStack = executionStartContext.getActivityStack();
 
-    if (activity.isScope()) {
-      execution.setActive(false);
-      execution.setActivity(null);
-      execution = execution.createExecution();
-      execution.setActivity(activity);
-    }
-
-    if (activity == activityStack.get(activityStack.size() - 1)) {
 
 //      executionStartContext.executionStarted(execution);
 
-      // TODO: this won't dispose a start context on a higher execution
+    if (activity == activityStack.get(activityStack.size() - 1)) {
       PvmExecutionImpl startContextExecution = getStartContextExecution(execution);
-      startContextExecution.disposeExecutionStartContext();
+      // TODO: this won't dispose a start context on a higher execution
+//      startContextExecution.disposeExecutionStartContext();
       executionStartContext.applyVariables(execution);
+//      disposeStartContext(startContextExecution);
 
-      // TODO: this does not respect asyncBefore; it's only treated in transition_create_scope
-      // but we can't call it here
-//      execution.performOperation(ACTIVITY_EXECUTE);
-
+      execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
     } else {
       int index = activityStack.indexOf(activity);
       // starting the next one
       activity = activityStack.get(index+1);
 
-      // and search for the correct execution to set the Activity to
-      execution.setActivity(activity);
-      // TODO: initialize() must be called after async
-//      executionToUse.initialize();
-      execution.performOperation(ACTIVITY_INIT_STACK);
+      PvmExecutionImpl propagatingExecution = execution;
+      if (activity.isScope() && activity != activityStack.get(activityStack.size() - 1)) {
+        execution.setActive(false);
+        execution.setActivity(null);
+        propagatingExecution = execution.createExecution();
+        execution.disposeExecutionStartContext();
+
+        propagatingExecution.setActivity(activity);
+        propagatingExecution.initialize();
+
+      } else {
+        // and search for the correct execution to set the Activity to
+        propagatingExecution.setActivity(activity);
+
+      }
+
+
+      if (activity == activityStack.get(activityStack.size() - 1)) {
+        propagatingExecution.performOperation(ACTIVITY_INIT_STACK);
+      } else {
+        propagatingExecution.performOperation(ACTIVITY_INIT_STACK_NOTIFY_LISTENER_START);
+      }
+
     }
   }
 
@@ -80,11 +104,12 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
   }
 
   public PvmExecutionImpl getStartContextExecution(PvmExecutionImpl execution) {
-    PvmExecutionImpl parent = execution;
-    while (parent.getExecutionStartContext() == null) {
-      parent = parent.getParent();
-    }
-    return parent;
+//    PvmExecutionImpl parent = execution;
+//    while (parent.getExecutionStartContext() == null) {
+//      parent = parent.getParent();
+//    }
+//    return parent;
+    return execution;
   }
 
 }

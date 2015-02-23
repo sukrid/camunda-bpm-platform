@@ -21,43 +21,34 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
  * @author Thorben Lindhauer
  *
  */
-public class PvmAtomicOperationActivityStartStack extends PvmAtomicOperationActivityInstanceStart {
-
-  public boolean isAsync(PvmExecutionImpl execution) {
-    ActivityImpl activity = execution.getActivity();
-    if (activity != null) {
-      return activity.isAsyncBefore();
-
-    } else {
-      return false;
-    }
-  }
+public class PvmAtomicOperationActivityInitStackNotifyListenerStart extends PvmAtomicOperationActivityInstanceStart {
 
   public String getCanonicalName() {
-    return "activity-stack-start";
+    return "activity-init-stack-notify-listener-start";
   }
 
   protected ScopeImpl getScope(PvmExecutionImpl execution) {
-    return execution.getActivity();
+    ActivityImpl activity = execution.getActivity();
+
+    if (activity!=null) {
+      return activity;
+    } else {
+      PvmExecutionImpl parent = execution.getParent();
+      if (parent != null) {
+        return getScope(execution.getParent());
+      }
+      return execution.getProcessDefinition();
+    }
   }
 
   protected String getEventName() {
     return ExecutionListener.EVENTNAME_START;
   }
 
-  // TODO: async?
-
   protected void eventNotificationsCompleted(PvmExecutionImpl execution) {
     super.eventNotificationsCompleted(execution);
+    execution.performOperation(ACTIVITY_INIT_STACK);
 
-    if (execution.getExecutions().isEmpty()) {
-      execution.performOperation(ACTIVITY_EXECUTE);
-
-    } else {
-      for (PvmExecutionImpl child : execution.getExecutions()) {
-        child.performOperation(ACTIVITY_START_STACK);
-      }
-    }
   }
 
 }

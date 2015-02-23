@@ -12,6 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
+import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 
@@ -23,7 +24,24 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 public class PvmAtomicOperationActivityInitStackConcurrent extends PvmAtomicOperationCreateConcurrentExecution {
 
   protected void concurrentExecutionCreated(PvmExecutionImpl propagatingExecution) {
-    propagatingExecution.performOperation(ACTIVITY_INIT_STACK);
+    ActivityImpl activity = propagatingExecution.getActivity();
+    if (activity.isScope()) {
+      propagatingExecution.setActive(false);
+      propagatingExecution.setActivity(null);
+      propagatingExecution = propagatingExecution.createExecution();
+      propagatingExecution.setActivity(activity);
+      propagatingExecution.initialize();
+    }
+    // TODO: otherwise no variable-history-events for process instance variables are thrown
+    if (propagatingExecution.getParent().getExecutionStartContext() != null) {
+      propagatingExecution.getParent().disposeExecutionStartContext();
+    }
+
+    propagatingExecution.performOperation(ACTIVITY_INIT_STACK_NOTIFY_LISTENER_START);
+
+//    propagatingExecution.performOperation(ACTIVITY_INIT_STACK);
+
+
   }
 
   public String getCanonicalName() {
