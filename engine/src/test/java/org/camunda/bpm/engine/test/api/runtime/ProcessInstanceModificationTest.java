@@ -19,6 +19,7 @@ import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
@@ -32,7 +33,7 @@ import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecu
  */
 public class ProcessInstanceModificationTest extends PluggableProcessEngineTestCase {
 
-  // TODO: separate the individual aspects (history, listener, events, variables, basics) into individual classes
+  // TODO: separate the individual aspects (history, listener, (boundary) events, variables, basics) into individual classes
 
   protected static final String PARALLEL_GATEWAY_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.parallelGateway.bpmn20.xml";
   protected static final String EXCLUSIVE_GATEWAY_PROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.exclusiveGateway.bpmn20.xml";
@@ -308,9 +309,6 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
 
   @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
   public void testCancellationAndCreation() {
-    // TODO: The problem is here that the process instance execution gets deleted
-    // from the database although it should not; this is due to tree compactation
-
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("exclusiveGateway");
 
     ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
@@ -330,6 +328,84 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
     assertEquals("task2", updatedTree.getChildActivityInstances()[0].getActivityId());
   }
 
+  // TODO: what happens with compensation?
+  // Scenario: Subprocess with two activities
+  // activity 1 is executed successfully, has compensation
+  // activity 2 is entered and then cancelled, such that the complete subprocess
+  // cancels
+  // => should compensation of activity 1 be later on possible? yes
+  @Deployment
+  public void testCompensationRemovalOnCancellation() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensationProcess");
+
+    Execution task2Execution = runtimeService.createExecutionQuery().activityId("innerTask").singleResult();
+    Task task = taskService.createTaskQuery().executionId(task2Execution.getId()).singleResult();
+    assertNotNull(task);
+
+    taskService.complete(task.getId());
+    // there should be a compensation event subscription for innerTask now
+    assertEquals(1, runtimeService.createEventSubscriptionQuery().count());
+
+    // when innerTask2 is cancelled
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .cancelActivityInstance(getInstanceIdForActivity(tree, "innerTask2"))
+      .execute();
+
+    // TODO: is this correct?
+    // then there should still be the compensation subscription for innerTask
+    assertEquals(1, runtimeService.createEventSubscriptionQuery().count());
+  }
+
+  // TODO: test creation directly on the activity to be started
+  // and on a parent activity that is also created
+  @Deployment
+  public void testCompensationCreation() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensationProcess");
+
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .startBeforeActivity("innerTask")
+      .execute();
+
+    Execution task2Execution = runtimeService.createExecutionQuery().activityId("innerTask").singleResult();
+    Task task = taskService.createTaskQuery().executionId(task2Execution.getId()).singleResult();
+    assertNotNull(task);
+
+    taskService.complete(task.getId());
+    assertEquals(2, runtimeService.createEventSubscriptionQuery().count());
+  }
+
+  @Deployment
+  public void testNoCompensationCreatedOnCancellation() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensationProcess");
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+
+    // one on outerTask, one on innerTask
+    assertEquals(2, taskService.createTaskQuery().count());
+
+
+    // when inner task is cancelled
+    runtimeService
+      .createProcessInstanceModification(processInstance.getId())
+      .cancelActivityInstance(getInstanceIdForActivity(tree, "innerTask"))
+      .execute();
+
+    // then no compensation event subscription exists
+    assertEquals(0, runtimeService.createEventSubscriptionQuery().count());
+
+    // and the compensation throw event does not trigger compensation handlers
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    assertEquals("outerTask", task.getTaskDefinitionKey());
+
+    taskService.complete(task.getId());
+
+
+    // TODO: trigger compensation and assert
+  }
+
   public String getInstanceIdForActivity(ActivityInstance activityInstance, String activityId) {
     ActivityInstance instance = getChildInstanceForActivity(activityInstance, activityId);
     if (instance != null) {
@@ -343,9 +419,14 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
    * the test assertions are not as tight anymore.
    */
   public ActivityInstance getChildInstanceForActivity(ActivityInstance activityInstance, String activityId) {
+    if (activityId.equals(activityInstance.getActivityId())) {
+      return activityInstance;
+    }
+
     for (ActivityInstance childInstance : activityInstance.getChildActivityInstances()) {
-      if (childInstance.getActivityId().equals(activityId)) {
-        return childInstance;
+      ActivityInstance instance = getChildInstanceForActivity(childInstance, activityId);
+      if (instance != null) {
+        return instance;
       }
     }
 
