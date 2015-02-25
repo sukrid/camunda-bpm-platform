@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.test.api.runtime;
 
 import java.util.List;
 
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.EventSubscription;
@@ -21,6 +22,9 @@ import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.util.ExecutionAssert;
+import org.hamcrest.core.IsNull;
+import org.junit.Assert;
 
 /**
  * @author Roman Smirnov
@@ -45,7 +49,21 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
       .startBeforeActivity("intermediateCatchEvent")
       .execute();
 
+
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
+
+
+    ExecutionAssert
+      .assertThat(processInstance, processEngineConfiguration)
+      .matches(
+        ExecutionAssert.describeExecutionTree(null)
+          .child("task2").up()
+          .child(null)
+            .child(null)
+              .child("intermediateCatchEvent")
+          .done());
+
+    Assert.assertThat(updatedTree, IsNull.notNullValue());
     assertNotNull(updatedTree);
     assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
