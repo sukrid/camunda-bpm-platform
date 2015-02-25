@@ -166,6 +166,9 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
   public void testCreationEventSubscription() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subprocess");
 
+    Task task = taskService.createTaskQuery().singleResult();
+    taskService.complete(task.getId());
+
     runtimeService
       .createProcessInstanceModification(processInstance.getId())
       .startBeforeActivity("innerTask")
