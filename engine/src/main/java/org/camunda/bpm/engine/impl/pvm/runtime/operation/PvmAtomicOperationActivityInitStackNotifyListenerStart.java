@@ -57,6 +57,7 @@ public class PvmAtomicOperationActivityInitStackNotifyListenerStart extends PvmA
     PvmActivity currentActivity = activityStack.get(0);
 
     if (activityStack.size() == 1) {
+      startContext.applyVariables(execution);
       execution.setActivity(currentActivity);
       execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
 

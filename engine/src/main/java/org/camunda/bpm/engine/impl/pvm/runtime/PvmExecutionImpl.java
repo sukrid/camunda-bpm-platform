@@ -315,14 +315,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
       return;
     }
 
-    this.startContext = new ExecutionStartContext();
-    this.startContext.setActivityStack(activityStack);
-    this.startContext.setVariables(variables);
-    this.startContext.setVariablesLocal(localVariables);
-
     PvmActivity topMostActivity = activityStack.get(0);
-
-
 
     if (topMostActivity.isCancelScope()) {
       // TODO: implement
@@ -351,10 +344,18 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
       propagatingExecution.setConcurrent(true);
       propagatingExecution.setScope(false);
 
+      ExecutionStartContext executionStartContext = new ExecutionStartContext();
+      executionStartContext.setActivityStack(activityStack);
+      executionStartContext.setVariables(variables);
+      executionStartContext.setVariablesLocal(localVariables);
+      propagatingExecution.setStartContext(executionStartContext);
+
       if (activityStack.size() > 1) {
         propagatingExecution.performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
 
       } else {
+        propagatingExecution.setVariables(variables);
+        propagatingExecution.setVariablesLocal(localVariables);
         propagatingExecution.setActivity(activityStack.get(0));
         propagatingExecution.performOperation(PvmAtomicOperation.ACTIVITY_START_CREATE_SCOPE);
 

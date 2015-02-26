@@ -34,7 +34,14 @@ public class ExecutionStartContext {
     if (execution instanceof ExecutionEntity) {
       ExecutionEntity executionEntity = (ExecutionEntity) execution;
       executionEntity.fireHistoricVariableInstanceCreateEvents();
+
+      ExecutionEntity parent = executionEntity;
+      while (parent != null && parent.getExecutionStartContext() != null) {
+        parent.disposeExecutionStartContext();
+        parent = parent.getParent();
+      }
     }
+
   }
 
   // TODO: a hack around the fact that this won't provide history if
