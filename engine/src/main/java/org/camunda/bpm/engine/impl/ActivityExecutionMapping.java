@@ -14,8 +14,10 @@ package org.camunda.bpm.engine.impl;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -29,16 +31,26 @@ import org.camunda.bpm.engine.impl.util.EnsureUtil;
  */
 public class ActivityExecutionMapping {
 
-  protected Map<ScopeImpl, List<ExecutionEntity>> activityExecutionMapping;
+  protected Map<ScopeImpl, Set<ExecutionEntity>> activityExecutionMapping;
   protected CommandContext commandContext;
   protected String processInstanceId;
 
   public ActivityExecutionMapping(CommandContext commandContext, String processInstanceId) {
     this.commandContext = commandContext;
     this.processInstanceId = processInstanceId;
-    this.activityExecutionMapping = new HashMap<ScopeImpl, List<ExecutionEntity>>();
+    this.activityExecutionMapping = new HashMap<ScopeImpl, Set<ExecutionEntity>>();
 
     initialize();
+  }
+
+  public Set<ExecutionEntity> getExecutions(ScopeImpl activity) {
+    Set<ExecutionEntity> executionsForActivity = activityExecutionMapping.get(activity);
+    if (executionsForActivity == null) {
+      executionsForActivity = new HashSet<ExecutionEntity>();
+      activityExecutionMapping.put(activity, executionsForActivity);
+    }
+
+    return executionsForActivity;
   }
 
   protected void initialize() {
@@ -61,22 +73,25 @@ public class ActivityExecutionMapping {
 
   protected void assignToActivity(ExecutionEntity execution, ScopeImpl activity) {
     EnsureUtil.ensureNotNull("activityId", activity);
-    List<ExecutionEntity> executionsForActivity = activityExecutionMapping.get(activity);
-    if (executionsForActivity == null) {
-      executionsForActivity = new ArrayList<ExecutionEntity>();
-      activityExecutionMapping.put(activity, executionsForActivity);
-    }
+    Set<ExecutionEntity> executionsForActivity = getExecutions(activity);
 
     executionsForActivity.add(execution);
 
-    ExecutionEntity parent = execution.getParent();
-    if (activity.isScope() && !execution.isScope()) {
-      executionsForActivity.add(parent);
-      parent = parent.getParent();
+    if (execution.isProcessInstanceExecution()) {
+      Set<ExecutionEntity> executionsForProcessDefinition = getExecutions(activity.getProcessDefinition());
+      executionsForProcessDefinition.add(execution);
+
+    } else {
+      ExecutionEntity parent = execution.getParent();
+
+      if (!parent.isScope()) {
+        parent = parent.getParent();
+      }
+
+      // TODO: is this correct?
+      assignToActivity(parent, activity.getParentScope());
     }
 
-    // TODO: is this correct?
-    assignToActivity(parent, activity.getParentScope());
   }
 
   protected List<ExecutionEntity> fetchExecutionsForProcessInstance(ExecutionEntity execution) {

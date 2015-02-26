@@ -11,13 +11,7 @@
 
     <subProcess id="subProcess">
       <startEvent id="theSubProcessStart" />
-      <sequenceFlow sourceRef="theSubProcessStart" targetRef="fork" />
-      
-      <parallelGateway id="fork"/>
-      <sequenceFlow sourceRef="fork" targetRef="innerTask2" />
-      <userTask id="innerTask2" />
-      
-      <sequenceFlow id="flow3" sourceRef="fork" targetRef="innerTask" />
+      <sequenceFlow id="flow3" sourceRef="theSubProcessStart" targetRef="innerTask" />
       <userTask id="innerTask" />
       <sequenceFlow id="flow4" sourceRef="innerTask" targetRef="theSubProcessEnd" />
       <endEvent id="theSubProcessEnd" />

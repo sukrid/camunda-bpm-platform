@@ -54,49 +54,59 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
 
     // TODO: where to dispose the start context? not here, because of recursive instantiation but where?
 
-    PvmActivity activity = execution.getActivity();
     List<PvmActivity> activityStack = executionStartContext.getActivityStack();
+    PvmActivity currentActivity = activityStack.remove(0);
+
+    PvmExecutionImpl propagatingExecution = execution;
+    if (currentActivity.isScope()) {
+      propagatingExecution = execution.createExecution();
+      execution.setActive(false);
+
+    }
+    propagatingExecution.setActivity(currentActivity);
+    propagatingExecution.initialize();
+    propagatingExecution.performOperation(ACTIVITY_INIT_STACK_NOTIFY_LISTENER_START);
 
 
 //      executionStartContext.executionStarted(execution);
 
-    if (activity == activityStack.get(activityStack.size() - 1)) {
-      PvmExecutionImpl startContextExecution = getStartContextExecution(execution);
-      // TODO: this won't dispose a start context on a higher execution
-//      startContextExecution.disposeExecutionStartContext();
-      executionStartContext.applyVariables(execution);
-//      disposeStartContext(startContextExecution);
-
-      execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
-    } else {
-      int index = activityStack.indexOf(activity);
-      // starting the next one
-      activity = activityStack.get(index+1);
-
-      PvmExecutionImpl propagatingExecution = execution;
-      if (activity.isScope() && activity != activityStack.get(activityStack.size() - 1)) {
-        execution.setActive(false);
-        execution.setActivity(null);
-        propagatingExecution = execution.createExecution();
-        execution.disposeExecutionStartContext();
-
-        propagatingExecution.setActivity(activity);
-        propagatingExecution.initialize();
-
-      } else {
-        // and search for the correct execution to set the Activity to
-        propagatingExecution.setActivity(activity);
-
-      }
-
-
-      if (activity == activityStack.get(activityStack.size() - 1)) {
-        propagatingExecution.performOperation(ACTIVITY_INIT_STACK);
-      } else {
-        propagatingExecution.performOperation(ACTIVITY_INIT_STACK_NOTIFY_LISTENER_START);
-      }
-
-    }
+//    if (activity == activityStack.get(activityStack.size() - 1)) {
+//      PvmExecutionImpl startContextExecution = getStartContextExecution(execution);
+//      // TODO: this won't dispose a start context on a higher execution
+////      startContextExecution.disposeExecutionStartContext();
+//      executionStartContext.applyVariables(execution);
+////      disposeStartContext(startContextExecution);
+//
+//      execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
+//    } else {
+//      int index = activityStack.indexOf(activity);
+//      // starting the next one
+//      activity = activityStack.get(index+1);
+//
+//      PvmExecutionImpl propagatingExecution = execution;
+//      if (activity.isScope() && activity != activityStack.get(activityStack.size() - 1)) {
+//        execution.setActive(false);
+//        execution.setActivity(null);
+//        propagatingExecution = execution.createExecution();
+//        execution.disposeExecutionStartContext();
+//
+//        propagatingExecution.setActivity(activity);
+//        propagatingExecution.initialize();
+//
+//      } else {
+//        // and search for the correct execution to set the Activity to
+//        propagatingExecution.setActivity(activity);
+//
+//      }
+//
+//
+//      if (activity == activityStack.get(activityStack.size() - 1)) {
+//        propagatingExecution.performOperation(ACTIVITY_INIT_STACK);
+//      } else {
+//        propagatingExecution.performOperation(ACTIVITY_INIT_STACK_NOTIFY_LISTENER_START);
+//      }
+//
+//    }
   }
 
   public boolean isAsync(PvmExecutionImpl instance) {

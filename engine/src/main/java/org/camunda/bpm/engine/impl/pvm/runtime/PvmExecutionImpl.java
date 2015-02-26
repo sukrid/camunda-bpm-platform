@@ -322,18 +322,58 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
     PvmActivity topMostActivity = activityStack.get(0);
 
-    if (this.getActivity() == null) {
-      // this covers the case in which all executions have been removed from the process instance
-      // TODO: is this always correct? What about concurrent roots? Can it happen that we call this with concurrent roots?
-      setActivity(topMostActivity);
-      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
-    } else if (this.getActivity().getScope() == topMostActivity.getScope()) {
-      // TODO: perhaps the list that is the parameter of this method can be List<ActivityImpl>?
-      this.nextActivity = (ActivityImpl) topMostActivity;
-      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK_CONCURRENT);
-    } else {
-      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
+
+
+    if (topMostActivity.isCancelScope()) {
+      // TODO: implement
     }
+    else {
+      List<? extends PvmExecutionImpl> children = getExecutions();
+      if (children.isEmpty()) {
+        PvmExecutionImpl replacingExecution = createExecution();
+        replacingExecution.setConcurrent(true);
+        replacingExecution.setScope(false);
+        replacingExecution.replace(this);
+        setActivity(null);
+
+      }
+      else if (children.size() == 1) {
+        PvmExecutionImpl child = children.get(0);
+
+        PvmExecutionImpl concurrentReplacingExecution = createExecution();
+        concurrentReplacingExecution.setConcurrent(true);
+        concurrentReplacingExecution.setScope(false);
+        child.setParent(concurrentReplacingExecution);
+        children.remove(child);
+      }
+
+      PvmExecutionImpl propagatingExecution = createExecution();
+      propagatingExecution.setConcurrent(true);
+      propagatingExecution.setScope(false);
+
+      if (activityStack.size() > 1) {
+        propagatingExecution.performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
+
+      } else {
+        propagatingExecution.setActivity(activityStack.get(0));
+        propagatingExecution.performOperation(PvmAtomicOperation.ACTIVITY_START_CREATE_SCOPE);
+
+      }
+    }
+
+
+//    if (this.getActivity() == null) {
+//      // this covers the case in which all executions have been removed from the process instance
+//      // TODO: is this always correct? What about concurrent roots? Can it happen that we call this with concurrent roots?
+//      setActivity(topMostActivity);
+//      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
+//    } else if (this.getActivity().getScope() == topMostActivity.getScope()) {
+//      // TODO: perhaps the list that is the parameter of this method can be List<ActivityImpl>?
+//      this.nextActivity = (ActivityImpl) topMostActivity;
+//      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK_CONCURRENT);
+//    } else {
+//      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
+//    }
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })

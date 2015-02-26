@@ -12,9 +12,13 @@
  */
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
+import java.util.List;
+
 import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
+import org.camunda.bpm.engine.impl.pvm.runtime.ExecutionStartContext;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 /**
@@ -47,8 +51,30 @@ public class PvmAtomicOperationActivityInitStackNotifyListenerStart extends PvmA
 
   protected void eventNotificationsCompleted(PvmExecutionImpl execution) {
     super.eventNotificationsCompleted(execution);
-    execution.performOperation(ACTIVITY_INIT_STACK);
 
+    ExecutionStartContext startContext = getExecutionStartContext(execution);
+    List<PvmActivity> activityStack = startContext.getActivityStack();
+    PvmActivity currentActivity = activityStack.get(0);
+
+    if (activityStack.size() == 1) {
+      execution.setActivity(currentActivity);
+      execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
+
+    } else {
+      execution.setActivity(null);
+      execution.performOperation(ACTIVITY_INIT_STACK);
+
+    }
+
+  }
+
+  protected ExecutionStartContext getExecutionStartContext(PvmExecutionImpl execution) {
+    ExecutionStartContext executionStartContext = execution.getExecutionStartContext();
+    if (executionStartContext==null) {
+      executionStartContext = execution.getExecutionStartContext();
+    }
+
+    return executionStartContext;
   }
 
 }
