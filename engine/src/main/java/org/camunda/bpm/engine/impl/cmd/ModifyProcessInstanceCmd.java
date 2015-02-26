@@ -157,7 +157,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       List<PvmActivity> pvmActivities = new ArrayList<PvmActivity>(activityStackToInstantiate);
       Collections.reverse(pvmActivities);
 
-      ancestor.executeActivities(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
+      ancestor.executeActivities(null, pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
 
     }
   }

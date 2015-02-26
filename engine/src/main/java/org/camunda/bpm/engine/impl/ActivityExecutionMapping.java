@@ -82,14 +82,18 @@ public class ActivityExecutionMapping {
       executionsForProcessDefinition.add(execution);
 
     } else {
-      ExecutionEntity parent = execution.getParent();
 
-      if (!parent.isScope()) {
-        parent = parent.getParent();
+      if(!activity.isScope() && execution.isScope()) {
+        assignToActivity(execution, activity.getParentScope());
       }
+      else {
+        ExecutionEntity parent = execution.getParent();
 
-      // TODO: is this correct?
-      assignToActivity(parent, activity.getParentScope());
+        if (!parent.isScope()) {
+          parent = parent.getParent();
+        }
+        assignToActivity(parent, activity.getParentScope());
+      }
     }
 
   }

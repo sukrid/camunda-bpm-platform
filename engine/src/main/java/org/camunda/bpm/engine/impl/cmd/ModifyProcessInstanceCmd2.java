@@ -59,13 +59,19 @@ public class ModifyProcessInstanceCmd2 implements Command<Void> {
       List<PvmActivity> activitiesToInstantiate = new ArrayList<PvmActivity>();
       activitiesToInstantiate.add(activity);
 
-      ScopeImpl parentActivity = activity.getParentScope();
+      ScopeImpl parentScope = activity.getParentScope();
+      ScopeImpl scope = activity.getScope();
 
-      Set<ExecutionEntity> parentActivityExecutions = mapping.getExecutions(parentActivity);
+      Set<ExecutionEntity> parentActivityExecutions = mapping.getExecutions(parentScope);
       while (parentActivityExecutions.isEmpty()) {
-        activitiesToInstantiate.add((ActivityImpl) parentActivity);
-        parentActivity = parentActivity.getParent();
-        parentActivityExecutions = mapping.getExecutions(parentActivity);
+        ActivityImpl parentActivity = (ActivityImpl) parentScope;
+        if (parentScope == scope) {
+          activitiesToInstantiate.add(parentActivity);
+
+        }
+        scope = parentActivity.getScope();
+        parentScope = parentActivity.getParentScope();
+        parentActivityExecutions = mapping.getExecutions(parentScope);
       }
 
       if (parentActivityExecutions.size() > 1) {
@@ -74,7 +80,7 @@ public class ModifyProcessInstanceCmd2 implements Command<Void> {
 
       Collections.reverse(activitiesToInstantiate);
       ExecutionEntity scopeExecution = parentActivityExecutions.iterator().next();
-      scopeExecution.executeActivities(activitiesToInstantiate,
+      scopeExecution.executeActivities(parentScope, activitiesToInstantiate,
           startInstruction.getVariables(), startInstruction.getVariablesLocal());
     }
 

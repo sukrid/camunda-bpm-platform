@@ -448,7 +448,7 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
     assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
+    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
     assertEquals("subProcess", subProcessInstance.getActivityId());
 
     ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
@@ -577,7 +577,7 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
     assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertEquals(2, updatedTree.getChildActivityInstances().length);
 
     ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
     assertNotNull(taskAfterBoundaryEventInstance);
