@@ -61,10 +61,14 @@ public class PvmAtomicOperationActivityInitStack implements PvmAtomicOperation {
     if (currentActivity.isScope()) {
       propagatingExecution = execution.createExecution();
       execution.setActive(false);
+      propagatingExecution.setActivity(currentActivity);
+      propagatingExecution.initialize();
 
     }
-    propagatingExecution.setActivity(currentActivity);
-    propagatingExecution.initialize();
+    else {
+      propagatingExecution.setActivity(currentActivity);
+
+    }
     propagatingExecution.performOperation(ACTIVITY_INIT_STACK_NOTIFY_LISTENER_START);
 
 

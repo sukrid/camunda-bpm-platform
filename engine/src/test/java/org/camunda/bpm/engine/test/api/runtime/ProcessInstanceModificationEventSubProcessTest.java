@@ -361,22 +361,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
     assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertEquals(1, updatedTree.getChildActivityInstances().length);
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
-
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
+    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
     assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
+    assertEquals("subProcess", subProcessInstance.getActivityId());
 
     ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
     assertNotNull(eventSubProcessTaskInstance);
     assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
     assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+
+    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "task2");
+    assertNotNull(taskInstance);
+    assertEquals(0, taskInstance.getChildActivityInstances().length);
+    assertEquals("task2", taskInstance.getActivityId());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -425,7 +425,12 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     assertEquals(1, updatedTree.getChildActivityInstances().length);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
+    ActivityInstance subProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
+    assertNotNull(subProcessTaskInstance);
+    assertEquals(1, subProcessTaskInstance.getChildActivityInstances().length);
+    assertEquals("eventSubProcess", subProcessTaskInstance.getActivityId());
+
+    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessTaskInstance, "eventSubProcessTask");
     assertNotNull(eventSubProcessTaskInstance);
     assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
     assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
@@ -590,7 +595,7 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
     assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertEquals(1, updatedTree.getChildActivityInstances().length);
 
     ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
     assertNotNull(taskInstance);

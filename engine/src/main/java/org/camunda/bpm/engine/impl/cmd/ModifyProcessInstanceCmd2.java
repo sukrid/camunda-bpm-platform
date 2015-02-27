@@ -22,6 +22,7 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.ActivityExecutionMapping;
 import org.camunda.bpm.engine.impl.ActivityInstantiationInstruction;
 import org.camunda.bpm.engine.impl.ProcessInstanceModificationBuilderImpl;
+import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -59,29 +60,73 @@ public class ModifyProcessInstanceCmd2 implements Command<Void> {
       List<PvmActivity> activitiesToInstantiate = new ArrayList<PvmActivity>();
       activitiesToInstantiate.add(activity);
 
-      ScopeImpl parentScope = activity.getParentScope();
-      ScopeImpl scope = activity.getScope();
+      ScopeImpl flowScope = activity.getFlowScope();
 
-      Set<ExecutionEntity> parentActivityExecutions = mapping.getExecutions(parentScope);
-      while (parentActivityExecutions.isEmpty()) {
-        ActivityImpl parentActivity = (ActivityImpl) parentScope;
-        if (parentScope == scope) {
-          activitiesToInstantiate.add(parentActivity);
+      Set<ExecutionEntity> flowScopeExecutions = mapping.getExecutions(flowScope);
+      while (flowScopeExecutions.isEmpty()) {
+        // TODO: check if process definition?
+        ActivityImpl flowScopeActivity = (ActivityImpl) flowScope;
+        activitiesToInstantiate.add(flowScopeActivity);
 
-        }
-        scope = parentActivity.getScope();
-        parentScope = parentActivity.getParentScope();
-        parentActivityExecutions = mapping.getExecutions(parentScope);
+        flowScope = flowScopeActivity.getFlowScope();
+        flowScopeExecutions = mapping.getExecutions(flowScope);
       }
 
-      if (parentActivityExecutions.size() > 1) {
+      if (flowScopeExecutions.size() > 1) {
         throw new ProcessEngineException("Cannot yet deal with cases in which there is more than 1 execution");
       }
 
       Collections.reverse(activitiesToInstantiate);
-      ExecutionEntity scopeExecution = parentActivityExecutions.iterator().next();
-      scopeExecution.executeActivities(parentScope, activitiesToInstantiate,
-          startInstruction.getVariables(), startInstruction.getVariablesLocal());
+      ExecutionEntity scopeExecution = flowScopeExecutions.iterator().next();
+
+      ActivityImpl topMostActivity = (ActivityImpl) activitiesToInstantiate.get(0);
+      boolean isCancelScope = false;
+      if (topMostActivity.isCancelScope()) {
+        if (activitiesToInstantiate.size() > 1) {
+          ActivityImpl initialActivity = (ActivityImpl) topMostActivity.getProperty(BpmnParse.PROPERTYNAME_INITIAL);
+          if (initialActivity == activitiesToInstantiate.get(1)) {
+            isCancelScope = true;
+          }
+        } else {
+          isCancelScope = true;
+        }
+      }
+
+      if (isCancelScope) {
+        ScopeImpl scopeToCancel = topMostActivity.getParentScope();
+        Set<ExecutionEntity> executionsToCancel = mapping.getExecutions(scopeToCancel);
+
+        if (!executionsToCancel.isEmpty()) {
+          // TODO: explode when executionsToCancel has more than one element
+
+          ExecutionEntity interruptedExecution = executionsToCancel.iterator().next();
+
+          if (scopeToCancel == topMostActivity.getFlowScope()) {
+            // interrupting
+            // TODO: the delete reason is a hack
+            interruptedExecution.cancelScope("Interrupting event sub process "+ topMostActivity + " fired.");
+            interruptedExecution.executeActivities(activitiesToInstantiate,
+                startInstruction.getVariables(), startInstruction.getVariablesLocal());
+          }
+          else {
+            // cancelling
+            scopeExecution.cancelScope("Cancel scope activity " + topMostActivity + " executed.");
+            scopeExecution.executeActivities(activitiesToInstantiate,
+                startInstruction.getVariables(), startInstruction.getVariablesLocal());
+
+          }
+        } else {
+          scopeExecution.executeActivitiesConcurrent(activitiesToInstantiate,
+              startInstruction.getVariables(), startInstruction.getVariablesLocal());
+
+        }
+      }
+      else {
+        scopeExecution.executeActivitiesConcurrent(activitiesToInstantiate,
+            startInstruction.getVariables(), startInstruction.getVariablesLocal());
+
+      }
+
     }
 
     return null;

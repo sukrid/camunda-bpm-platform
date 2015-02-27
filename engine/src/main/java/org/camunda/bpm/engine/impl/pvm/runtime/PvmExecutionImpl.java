@@ -308,61 +308,38 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   /**
    * The most deeply nested activity is the last element in the list
    */
-  public void executeActivities(ScopeImpl thisScope, List<PvmActivity> activityStack,
+  public void executeActivitiesConcurrent(List<PvmActivity> activityStack,
       Map<String, Object> variables, Map<String, Object> localVariables) {
 
     if (activityStack.isEmpty()) {
       return;
     }
 
-    PvmActivity topMostActivity = activityStack.get(0);
+    List<? extends PvmExecutionImpl> children = getExecutions();
+    if (children.isEmpty()) {
+      PvmExecutionImpl replacingExecution = createExecution();
+      replacingExecution.setConcurrent(true);
+      replacingExecution.setScope(false);
+      replacingExecution.replace(this);
+      setActivity(null);
 
-    if (topMostActivity.isCancelScope() && activityStack.size() == 1 && thisScope == topMostActivity.getParent()) {
-      this.setVariables(variables);
-      this.setVariablesLocal(localVariables);
-      this.executeActivity(topMostActivity);
     }
-    else {
-      List<? extends PvmExecutionImpl> children = getExecutions();
-      if (children.isEmpty()) {
-        PvmExecutionImpl replacingExecution = createExecution();
-        replacingExecution.setConcurrent(true);
-        replacingExecution.setScope(false);
-        replacingExecution.replace(this);
-        setActivity(null);
+    else if (children.size() == 1) {
+      PvmExecutionImpl child = children.get(0);
 
-      }
-      else if (children.size() == 1) {
-        PvmExecutionImpl child = children.get(0);
-
-        PvmExecutionImpl concurrentReplacingExecution = createExecution();
-        concurrentReplacingExecution.setConcurrent(true);
-        concurrentReplacingExecution.setScope(false);
-        child.setParent(concurrentReplacingExecution);
-        children.remove(child);
-      }
-
-      PvmExecutionImpl propagatingExecution = createExecution();
-      propagatingExecution.setConcurrent(true);
-      propagatingExecution.setScope(false);
-
-      ExecutionStartContext executionStartContext = new ExecutionStartContext();
-      executionStartContext.setActivityStack(activityStack);
-      executionStartContext.setVariables(variables);
-      executionStartContext.setVariablesLocal(localVariables);
-      propagatingExecution.setStartContext(executionStartContext);
-
-      if (activityStack.size() > 1) {
-        propagatingExecution.performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
-
-      } else {
-        propagatingExecution.setVariables(variables);
-        propagatingExecution.setVariablesLocal(localVariables);
-        propagatingExecution.setActivity(activityStack.get(0));
-        propagatingExecution.performOperation(PvmAtomicOperation.ACTIVITY_START_CREATE_SCOPE);
-
-      }
+      PvmExecutionImpl concurrentReplacingExecution = createExecution();
+      concurrentReplacingExecution.setConcurrent(true);
+      concurrentReplacingExecution.setScope(false);
+      child.setParent(concurrentReplacingExecution);
+      children.remove(child);
     }
+
+    PvmExecutionImpl propagatingExecution = createExecution();
+    propagatingExecution.setConcurrent(true);
+    propagatingExecution.setScope(false);
+
+    propagatingExecution.executeActivities(activityStack, variables, localVariables);
+
 
 
 //    if (this.getActivity() == null) {
@@ -377,6 +354,27 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 //    } else {
 //      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
 //    }
+  }
+
+  public void executeActivities(List<PvmActivity> activityStack,
+      Map<String, Object> variables, Map<String, Object> localVariables) {
+
+    ExecutionStartContext executionStartContext = new ExecutionStartContext();
+    executionStartContext.setActivityStack(activityStack);
+    executionStartContext.setVariables(variables);
+    executionStartContext.setVariablesLocal(localVariables);
+    setStartContext(executionStartContext);
+
+    if (activityStack.size() > 1) {
+      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
+
+    } else {
+      setVariables(variables);
+      setVariablesLocal(localVariables);
+      setActivity(activityStack.get(0));
+      performOperation(PvmAtomicOperation.ACTIVITY_START_CREATE_SCOPE);
+
+    }
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })
