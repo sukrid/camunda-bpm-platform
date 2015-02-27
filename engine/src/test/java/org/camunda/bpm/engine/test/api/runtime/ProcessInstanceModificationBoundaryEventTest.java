@@ -12,10 +12,16 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
+import static org.camunda.bpm.engine.test.util.ExecutionAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ExecutionAssert.describeExecutionTree;
+
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.util.ExecutionTree;
 
 /**
  * @author Roman Smirnov
@@ -44,20 +50,24 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+        .activity("taskAfterBoundaryEvent")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("task1").scope()
+        .done());
+
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT)
@@ -72,15 +82,19 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+    .matches(
+      describeExecutionTree("taskAfterBoundaryEvent").scope()
+      .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT)
@@ -98,20 +112,23 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("task2")
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child("task2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT)
@@ -129,20 +146,22 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("task2")
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child("task2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT)
@@ -157,20 +176,23 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("task1")
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("task1").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT)
@@ -185,20 +207,23 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("task1")
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("task1").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT)
@@ -216,20 +241,22 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("task2")
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child("task2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT)
@@ -247,20 +274,22 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("task2")
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child("task2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -275,25 +304,26 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask1")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child(null).concurrent().noScope()
+              .child("innerTask1").scope()
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask1", taskInstance.getActivityId());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -308,20 +338,21 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("innerTaskAfterBoundaryEvent").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -336,25 +367,25 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask1")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
-
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask1", taskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child(null).concurrent().noScope()
+              .child("innerTask1").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -369,25 +400,25 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask1")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
-
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask1", taskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child(null).concurrent().noScope()
+              .child("innerTask1").scope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -405,25 +436,24 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask2")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
-
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask2", taskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child("innerTask2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -441,20 +471,24 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask2")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child("innerTask2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -472,25 +506,24 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask2")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
-
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask2", taskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child("innerTask2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT_INSIDE_SUBPROCESS)
@@ -508,25 +541,24 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask2")
+            .activity("innerTaskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance innerTaskAfterBoundaryEventInstance = getChildInstanceForActivity(subProcessInstance, "innerTaskAfterBoundaryEvent");
-    assertNotNull(innerTaskAfterBoundaryEventInstance);
-    assertEquals(0, innerTaskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("innerTaskAfterBoundaryEvent", innerTaskAfterBoundaryEventInstance.getActivityId());
-
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask2", taskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("innerTaskAfterBoundaryEvent").concurrent().noScope().up()
+            .child("innerTask2").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT_ON_SUBPROCESS)
@@ -541,25 +573,25 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask")
+          .endScope()
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask", taskInstance.getActivityId());
-
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("innerTask").scope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_BOUNDARY_EVENT_ON_SUBPROCESS)
@@ -569,20 +601,24 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     runtimeService
       .createProcessInstanceModification(processInstanceId)
-      .startBeforeActivity("taskAfterBoundaryEvent")
+      .startBeforeActivity("boundaryEvent")
       .execute();
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree("taskAfterBoundaryEvent").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT_ON_SUBPROCESS)
@@ -597,25 +633,26 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask")
+          .endScope()
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("innerTask").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_BOUNDARY_EVENT_ON_SUBPROCESS)
@@ -630,47 +667,25 @@ public class ProcessInstanceModificationBoundaryEventTest extends PluggableProce
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("innerTask")
+          .endScope()
+          .activity("taskAfterBoundaryEvent")
+        .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "innerTask");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("innerTask", taskInstance.getActivityId());
-
-    ActivityInstance taskAfterBoundaryEventInstance = getChildInstanceForActivity(updatedTree, "taskAfterBoundaryEvent");
-    assertNotNull(taskAfterBoundaryEventInstance);
-    assertEquals(0, taskAfterBoundaryEventInstance.getChildActivityInstances().length);
-    assertEquals("taskAfterBoundaryEvent", taskAfterBoundaryEventInstance.getActivityId());
-  }
-
-  public String getInstanceIdForActivity(ActivityInstance activityInstance, String activityId) {
-    ActivityInstance instance = getChildInstanceForActivity(activityInstance, activityId);
-    if (instance != null) {
-      return instance.getId();
-    }
-    return null;
-  }
-
-  /**
-   * Important that only the direct children are considered here. If you change this,
-   * the test assertions are not as tight anymore.
-   */
-  public ActivityInstance getChildInstanceForActivity(ActivityInstance activityInstance, String activityId) {
-    for (ActivityInstance childInstance : activityInstance.getChildActivityInstances()) {
-      if (childInstance.getActivityId().equals(activityId)) {
-        return childInstance;
-      }
-    }
-
-    return null;
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("taskAfterBoundaryEvent").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("innerTask").scope()
+        .done());
   }
 
 }

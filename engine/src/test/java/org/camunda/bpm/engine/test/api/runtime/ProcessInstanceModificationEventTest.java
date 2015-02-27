@@ -12,9 +12,13 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
+import static org.camunda.bpm.engine.test.util.ExecutionAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ExecutionAssert.describeExecutionTree;
+
 import java.util.List;
 
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.EventSubscription;
@@ -22,9 +26,7 @@ import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
-import org.camunda.bpm.engine.test.util.ExecutionAssert;
-import org.hamcrest.core.IsNull;
-import org.junit.Assert;
+import org.camunda.bpm.engine.test.util.ExecutionTree;
 
 /**
  * @author Roman Smirnov
@@ -51,36 +53,26 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
 
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
-
-
-    ExecutionAssert
-      .assertThat(processInstance, processEngineConfiguration)
-      .matches(
-        ExecutionAssert.describeExecutionTree(null)
-          .child("task2").up()
-          .child(null)
-            .child(null)
-              .child("intermediateCatchEvent")
-          .done());
-
-    Assert.assertThat(updatedTree, IsNull.notNullValue());
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task")
+        .activity("intermediateCatchEvent")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task", taskInstance.getActivityId());
-    assertEquals(1, taskInstance.getExecutionIds().length);
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("intermediateCatchEvent").scope()
+          .done());
 
     ActivityInstance catchEventInstance = getChildInstanceForActivity(updatedTree, "intermediateCatchEvent");
-    assertNotNull(catchEventInstance);
-    assertEquals(0, catchEventInstance.getChildActivityInstances().length);
-    assertEquals("intermediateCatchEvent", catchEventInstance.getActivityId());
-    assertEquals(1, catchEventInstance.getExecutionIds().length);
 
     // and there is a timer job
     Job job = managementService.createJobQuery().singleResult();
@@ -109,17 +101,22 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
     // then there are two instances of "task"
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task")
+        .activity("task")
+      .done());
 
-    for (ActivityInstance child : updatedTree.getChildActivityInstances()) {
-      assertNotNull(child);
-      assertEquals(0, child.getChildActivityInstances().length);
-      assertEquals("task", child.getActivityId());
-      assertEquals(1, child.getExecutionIds().length);
-    }
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task").concurrent().noScope().up()
+          .child("task").concurrent().noScope()
+        .done());
 
     // and there is only the message start event subscription
     EventSubscription subscription = runtimeService.createEventSubscriptionQuery().singleResult();
@@ -144,17 +141,22 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
     // then there are two instances of "task"
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task")
+        .activity("task")
+      .done());
 
-    for (ActivityInstance child : updatedTree.getChildActivityInstances()) {
-      assertNotNull(child);
-      assertEquals(0, child.getChildActivityInstances().length);
-      assertEquals("task", child.getActivityId());
-      assertEquals(1, child.getExecutionIds().length);
-    }
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task").concurrent().noScope().up()
+          .child("task").concurrent().noScope()
+          .done());
 
     // and there is only one timer job
     Job job = managementService.createJobQuery().singleResult();
@@ -176,17 +178,22 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
     // then there are two instances of "task"
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("theTask")
+        .activity("theTask")
+      .done());
 
-    for (ActivityInstance child : updatedTree.getChildActivityInstances()) {
-      assertNotNull(child);
-      assertEquals(0, child.getChildActivityInstances().length);
-      assertEquals("theTask", child.getActivityId());
-      assertEquals(1, child.getExecutionIds().length);
-    }
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("theTask").concurrent().noScope().up()
+          .child("theTask").concurrent().noScope()
+          .done());
 
     // and the process can be ended as usual
     List<Task> tasks = taskService.createTaskQuery().list();
@@ -213,16 +220,19 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
     // then there is no effect
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("theTask")
+      .done());
 
-    ActivityInstance child = updatedTree.getChildActivityInstances()[0];
-    assertNotNull(child);
-    assertEquals(0, child.getChildActivityInstances().length);
-    assertEquals("theTask", child.getActivityId());
-    assertEquals(1, child.getExecutionIds().length);
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree("theTask").scope()
+          .done());
   }
 
   @Deployment(resources = TERMINATE_END_EVENT_PROCESS)
@@ -259,35 +269,19 @@ public class ProcessInstanceModificationEventTest extends PluggableProcessEngine
     // then the subprocess instance is cancelled
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
-
-    ActivityInstance child = updatedTree.getChildActivityInstances()[0];
-    assertNotNull(child);
-    assertEquals(0, child.getChildActivityInstances().length);
-    assertEquals("theTask", child.getActivityId());
-    assertEquals(1, child.getExecutionIds().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("theTask")
+      .done());
 
     Task afterCancellationTask = taskService.createTaskQuery().singleResult();
     assertNotNull(afterCancellationTask);
-    assertTrue(!txTask.getId().equals(afterCancellationTask.getId()));
+    assertFalse(txTask.getId().equals(afterCancellationTask.getId()));
     assertEquals("afterCancellation", afterCancellationTask.getTaskDefinitionKey());
   }
 
-  public String getInstanceIdForActivity(ActivityInstance activityInstance, String activityId) {
-    ActivityInstance instance = getChildInstanceForActivity(activityInstance, activityId);
-    if (instance != null) {
-      return instance.getId();
-    }
-    return null;
-  }
-
-  /**
-   * Important that only the direct children are considered here. If you change this,
-   * the test assertions are not as tight anymore.
-   */
   public ActivityInstance getChildInstanceForActivity(ActivityInstance activityInstance, String activityId) {
     for (ActivityInstance childInstance : activityInstance.getChildActivityInstances()) {
       if (childInstance.getActivityId().equals(activityId)) {

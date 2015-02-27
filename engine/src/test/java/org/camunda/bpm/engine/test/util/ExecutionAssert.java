@@ -14,12 +14,7 @@ package org.camunda.bpm.engine.test.util;
 
 import java.util.Stack;
 
-import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
-import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-import org.camunda.bpm.engine.runtime.Execution;
 
 /**
  * @author Thorben Lindhauer
@@ -27,31 +22,18 @@ import org.camunda.bpm.engine.runtime.Execution;
  */
 public class ExecutionAssert {
 
-  protected Execution rootExecution;
+  protected ExecutionTree tree;
   protected CommandExecutor commandExecutor;
 
-  public static ExecutionAssert assertThat(Execution execution, ProcessEngineConfigurationImpl engineConfig) {
+  public static ExecutionAssert assertThat(ExecutionTree tree) {
 
     ExecutionAssert assertion = new ExecutionAssert();
-    assertion.rootExecution = execution;
-    assertion.commandExecutor = engineConfig.getCommandExecutorTxRequired();
+    assertion.tree = tree;
     return assertion;
   }
 
   public void matches(ExecutionTreeAssertion assertion) {
-    ExecutionEntity fetchedExecution = commandExecutor.execute(new Command<ExecutionEntity>() {
-
-      public ExecutionEntity execute(CommandContext commandContext) {
-        ExecutionEntity rootEntity =
-            commandContext.getExecutionManager().findExecutionById(rootExecution.getId());
-        rootEntity.ensureExecutionTreeInitialized();
-
-        return rootEntity;
-      }
-
-    });
-
-    assertion.assertExecution(fetchedExecution);
+    assertion.assertExecution(tree);
   }
 
   public static class ExecutionTreeBuilder {
@@ -74,6 +56,24 @@ public class ExecutionAssert {
 
       activityInstanceStack.push(newInstance);
 
+      return this;
+    }
+
+    public ExecutionTreeBuilder scope() {
+      ExecutionTreeAssertion currentAssertion = activityInstanceStack.peek();
+      currentAssertion.setExpectedIsScope(true);
+      return this;
+    }
+
+    public ExecutionTreeBuilder concurrent() {
+      ExecutionTreeAssertion currentAssertion = activityInstanceStack.peek();
+      currentAssertion.setExpectedIsConcurrent(true);
+      return this;
+    }
+
+    public ExecutionTreeBuilder noScope() {
+      ExecutionTreeAssertion currentAssertion = activityInstanceStack.peek();
+      currentAssertion.setExpectedIsScope(false);
       return this;
     }
 

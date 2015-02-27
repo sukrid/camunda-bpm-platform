@@ -12,10 +12,16 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
+import static org.camunda.bpm.engine.test.util.ExecutionAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ExecutionAssert.describeExecutionTree;
+
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.util.ExecutionTree;
 
 /**
  * @author Roman Smirnov
@@ -40,20 +46,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS)
@@ -71,15 +79,20 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree("eventSubProcessTask").scope()
+        .done());
+
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS)
@@ -94,15 +107,19 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS)
@@ -117,15 +134,19 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS)
@@ -140,20 +161,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS)
@@ -171,15 +194,19 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS)
@@ -194,20 +221,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS)
@@ -222,20 +251,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+        .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -252,25 +283,25 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
-
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -285,27 +316,29 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     // TODO: the eventSubProcess should be set to scope
 
+
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("eventSubProcessTask").scope()
+        .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -320,27 +353,28 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     // TODO: the eventSubProcess should be set to scope
 
+
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
-
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -356,27 +390,28 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
       .startBeforeActivity("eventSubProcessTask")
       .execute();
 
+
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .beginScope("subProcess")
+          .activity("task2")
+//          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "subProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(2, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("subProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
-
-    ActivityInstance taskInstance = getChildInstanceForActivity(subProcessInstance, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("task2").concurrent().noScope().up()
+            .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -394,15 +429,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
+
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -420,20 +462,22 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance subProcessTaskInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessTaskInstance);
-    assertEquals(1, subProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessTaskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessTaskInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -450,25 +494,25 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
-
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -485,25 +529,26 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("eventSubProcessTask").scope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -520,25 +565,26 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("task1")
+//        .beginScope("subProcess")
+          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task1");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task1", taskInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child("task1").concurrent().noScope().up()
+          .child(null).concurrent().noScope()
+            .child("eventSubProcessTask").scope()
+        .done());
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -554,27 +600,29 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
       .startBeforeActivity("eventSubProcessTask")
       .execute();
 
+
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .beginScope("subProcess")
+          .activity("task2")
+//          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("task2").concurrent().noScope().up()
+            .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -592,25 +640,26 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(1, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .beginScope("subProcess")
+          .activity("task2")
+//          .beginScope("eventSubProcess")
+            .activity("eventSubProcessTask")
+      .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("task2").concurrent().noScope().up()
+            .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   @Deployment(resources = NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS)
@@ -628,25 +677,26 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
 
     ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
     assertNotNull(updatedTree);
-    assertEquals(processInstance.getProcessDefinitionId(), updatedTree.getActivityId());
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-    assertEquals(2, updatedTree.getChildActivityInstances().length);
+    assertThat(updatedTree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("subProcess")
+            .activity("task2")
+//            .beginScope("eventSubProcess")
+              .activity("eventSubProcessTask")
+        .done());
 
-    ActivityInstance taskInstance = getChildInstanceForActivity(updatedTree, "task2");
-    assertNotNull(taskInstance);
-    assertEquals(0, taskInstance.getChildActivityInstances().length);
-    assertEquals("task2", taskInstance.getActivityId());
 
-    ActivityInstance subProcessInstance = getChildInstanceForActivity(updatedTree, "eventSubProcess");
-    assertNotNull(subProcessInstance);
-    assertEquals(1, subProcessInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcess", subProcessInstance.getActivityId());
+    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
-    ActivityInstance eventSubProcessTaskInstance = getChildInstanceForActivity(subProcessInstance, "eventSubProcessTask");
-    assertNotNull(eventSubProcessTaskInstance);
-    assertEquals(0, eventSubProcessTaskInstance.getChildActivityInstances().length);
-    assertEquals("eventSubProcessTask", eventSubProcessTaskInstance.getActivityId());
+    assertThat(executionTree)
+      .matches(
+        describeExecutionTree(null).scope()
+          .child(null).scope()
+            .child("task2").concurrent().noScope().up()
+            .child("eventSubProcessTask").concurrent().noScope()
+        .done());
   }
 
   public String getInstanceIdForActivity(ActivityInstance activityInstance, String activityId) {

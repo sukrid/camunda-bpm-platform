@@ -40,40 +40,25 @@ public class ActivityInstanceAssert {
     }
 
     protected void assertTreeMatch(ActivityInstance expected, ActivityInstance actual) {
-
-      Assert.assertEquals("must have same number of child activities",
-            expected.getChildActivityInstances().length, actual.getChildActivityInstances().length);
-
-      List<ActivityInstance> unmatchedInstances = new ArrayList<ActivityInstance>(Arrays.asList(actual.getChildActivityInstances()));
-
-      for (ActivityInstance expectedChildInstance : expected.getChildActivityInstances()) {
-        boolean isMatchFound = false;
-        for (ActivityInstance actualChildInstance : new ArrayList<ActivityInstance>(unmatchedInstances)) {
-          if (isTreeMatched(actualChildInstance, expectedChildInstance)) {
-            unmatchedInstances.remove(actualChildInstance);
-            isMatchFound = true;
-            break;
-          }
-        }
-        if(!isMatchFound) {
-          Assert.fail("Could not find matching subtree for \n" +expectedChildInstance +" \n\n -in- \n\n "+actual);
-        }
+      boolean treesMatch = isTreeMatched(expected, actual);
+      if (!treesMatch) {
+        Assert.fail("Could not match expected tree \n" + expected +" \n\n with actual tree \n\n "+actual);
       }
 
     }
 
 
     /** if anyone wants to improve this algorithm, feel welcome! */
-    protected boolean isTreeMatched(ActivityInstance actualChildInstance, ActivityInstance expectedChildInstance) {
-      if(!expectedChildInstance.getActivityId().equals(actualChildInstance.getActivityId())) {
+    protected boolean isTreeMatched(ActivityInstance actualInstance, ActivityInstance expectedInstance) {
+      if(!expectedInstance.getActivityId().equals(actualInstance.getActivityId())) {
         return false;
       } else {
-        if(expectedChildInstance.getChildActivityInstances().length != actualChildInstance.getChildActivityInstances().length) {
+        if(expectedInstance.getChildActivityInstances().length != actualInstance.getChildActivityInstances().length) {
           return false;
         } else {
 
-          List<ActivityInstance> unmatchedInstances = new ArrayList<ActivityInstance>(Arrays.asList(expectedChildInstance.getChildActivityInstances()));
-          for (ActivityInstance child1 : actualChildInstance.getChildActivityInstances()) {
+          List<ActivityInstance> unmatchedInstances = new ArrayList<ActivityInstance>(Arrays.asList(expectedInstance.getChildActivityInstances()));
+          for (ActivityInstance child1 : actualInstance.getChildActivityInstances()) {
             boolean matchFound = false;
             for (ActivityInstance child2 : new ArrayList<ActivityInstance>(unmatchedInstances)) {
               if (isTreeMatched(child1, child2)) {
@@ -104,9 +89,9 @@ public class ActivityInstanceAssert {
       this(null);
     }
 
-    public ActivityInstanceTreeBuilder(String rootActivityInstanceId) {
+    public ActivityInstanceTreeBuilder(String rootActivityId) {
       rootInstance = new ActivityInstanceImpl();
-      rootInstance.setActivityId(rootActivityInstanceId);
+      rootInstance.setActivityId(rootActivityId);
       activityInstanceStack.push(rootInstance);
     }
 
@@ -144,6 +129,10 @@ public class ActivityInstanceAssert {
 
   public static ActivityInstanceTreeBuilder describeActivityInstanceTree() {
     return new ActivityInstanceTreeBuilder();
+  }
+
+  public static ActivityInstanceTreeBuilder describeActivityInstanceTree(String rootActivityId) {
+    return new ActivityInstanceTreeBuilder(rootActivityId);
   }
 
   public static ActivityInstanceAssertThatClause assertThat(ActivityInstance actual) {

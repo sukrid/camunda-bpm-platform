@@ -15,7 +15,6 @@ package org.camunda.bpm.engine.test.util;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.junit.Assert;
 
 /**
@@ -25,6 +24,9 @@ import org.junit.Assert;
 public class ExecutionTreeAssertion {
 
   protected String expectedActivityId;
+  protected Boolean expectedIsScope = true;
+  protected Boolean expectedIsConcurrent = false;
+
   protected List<ExecutionTreeAssertion> childAssertions = new ArrayList<ExecutionTreeAssertion>();
 
   public void addChildAssertion(ExecutionTreeAssertion childAssertion) {
@@ -38,20 +40,32 @@ public class ExecutionTreeAssertion {
   /**
    * This assumes that all children have been fetched
    */
-  protected boolean matches(ExecutionEntity execution) {
-    String actualActivityId = execution.getActivityId();
+  protected boolean matches(ExecutionTree tree) {
+    // match activity id
+    String actualActivityId = tree.getActivityId();
     if (expectedActivityId == null && actualActivityId != null) {
       return false;
-    } else if (expectedActivityId != null && !expectedActivityId.equals(execution.getActivityId())) {
+    } else if (expectedActivityId != null && !expectedActivityId.equals(tree.getActivityId())) {
       return false;
     }
 
-    if (execution.getExecutions().size() != childAssertions.size()) {
+
+    // match is scope
+    if (expectedIsScope != null && !expectedIsScope.equals(tree.isScope())) {
+      return false;
+    }
+
+    if (expectedIsConcurrent != null && !expectedIsConcurrent.equals(tree.isConcurrent())) {
+      return false;
+    }
+
+    // match children
+    if (tree.getExecutions().size() != childAssertions.size()) {
       return false;
     }
 
     List<ExecutionTreeAssertion> unmatchedChildAssertions = new ArrayList<ExecutionTreeAssertion>(childAssertions);
-    for (ExecutionEntity child : execution.getExecutions()) {
+    for (ExecutionTree child : tree.getExecutions()) {
       for (ExecutionTreeAssertion childAssertion : unmatchedChildAssertions) {
         if (childAssertion.matches(child)) {
           unmatchedChildAssertions.remove(childAssertion);
@@ -67,24 +81,24 @@ public class ExecutionTreeAssertion {
     return true;
   }
 
-  public void assertExecution(ExecutionEntity execution) {
-    boolean matches = matches(execution);
+  public void assertExecution(ExecutionTree tree) {
+    boolean matches = matches(tree);
     if (!matches) {
       StringBuilder errorBuilder = new StringBuilder();
       errorBuilder.append("Expected tree: \n");
       describe(this, "", errorBuilder);
       errorBuilder.append("Actual tree: \n");
-      describe(execution, "", errorBuilder);
+      describe(tree, "", errorBuilder);
       Assert.fail(errorBuilder.toString());
     }
   }
 
-  public static void describe(ExecutionEntity execution, String prefix, StringBuilder errorBuilder) {
+  public static void describe(ExecutionTree tree, String prefix, StringBuilder errorBuilder) {
     errorBuilder.append(prefix);
-    errorBuilder.append(execution);
+    errorBuilder.append(executionTreeToString(tree));
     errorBuilder.append("\n");
-    for (ExecutionEntity child : execution.getExecutions()) {
-      describe(child, prefix + "  ", errorBuilder);
+    for (ExecutionTree child : tree.getExecutions()) {
+      describe(child, prefix + "   ", errorBuilder);
     }
   }
 
@@ -93,12 +107,55 @@ public class ExecutionTreeAssertion {
     errorBuilder.append(assertion);
     errorBuilder.append("\n");
     for (ExecutionTreeAssertion child : assertion.childAssertions) {
-      describe(child, prefix + "  ", errorBuilder);
+      describe(child, prefix + "   ", errorBuilder);
     }
   }
 
+  public static String executionTreeToString(ExecutionTree executionTree) {
+    StringBuilder sb = new StringBuilder();
+    sb.append(executionTree.getExecution());
+
+    sb.append("[activityId=");
+    sb.append(executionTree.getActivityId());
+
+    sb.append(", isScope=");
+    sb.append(executionTree.isScope());
+
+    sb.append(", isConcurrent=");
+    sb.append(executionTree.isConcurrent());
+
+    sb.append("]");
+
+    return sb.toString();
+  }
+
   public String toString() {
-    return "[activityId=" + expectedActivityId + "]";
+    StringBuilder sb = new StringBuilder();
+    sb.append("[activityId=");
+    sb.append(expectedActivityId);
+
+    if (expectedIsScope != null) {
+      sb.append(", isScope=");
+      sb.append(expectedIsScope);
+    }
+
+    if (expectedIsConcurrent != null) {
+      sb.append(", isConcurrent=");
+      sb.append(expectedIsConcurrent);
+    }
+
+    sb.append("]");
+
+    return sb.toString();
+  }
+
+  public void setExpectedIsScope(Boolean expectedIsScope) {
+    this.expectedIsScope = expectedIsScope;
+
+  }
+
+  public void setExpectedIsConcurrent(Boolean expectedIsConcurrent) {
+    this.expectedIsConcurrent = expectedIsConcurrent;
   }
 
 }

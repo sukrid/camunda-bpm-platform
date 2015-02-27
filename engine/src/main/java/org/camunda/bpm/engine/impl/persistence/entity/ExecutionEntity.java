@@ -1098,7 +1098,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements
    * more data.
    *
    */
-  public void ensureExecutionTreeInitialized() {
+  protected void ensureExecutionTreeInitialized() {
     List<ExecutionEntity> executions = Context.getCommandContext()
       .getExecutionManager()
       .findChildExecutionsByProcessInstanceId(processInstanceId);
