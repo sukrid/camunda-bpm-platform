@@ -13,29 +13,24 @@
 package org.camunda.bpm.engine.impl.cmd;
 
 
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.ActivityExecutionMapping;
 import org.camunda.bpm.engine.impl.ActivityInstantiationInstruction;
 import org.camunda.bpm.engine.impl.ProcessInstanceModificationBuilderImpl;
-import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
-import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
-import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
+import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
+import org.camunda.bpm.engine.impl.util.EnsureUtil;
 
 /**
  * @author Thorben Lindhauer
@@ -51,303 +46,119 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
   public Void execute(CommandContext commandContext) {
     String processInstanceId = builder.getProcessInstanceId();
+    ExecutionEntity processInstance = commandContext.getExecutionManager().findExecutionById(processInstanceId);
 
-    ensureNotNull("processInstanceId", processInstanceId);
-    ActivityInstance processInstanceTree = new GetActivityInstanceCmd(processInstanceId).execute(commandContext);
-    ActivityInstanceLookup treeLookup = new ActivityInstanceLookup(processInstanceTree);
+    ProcessDefinitionImpl processDefinition = processInstance.getProcessDefinition();
 
-    DeploymentCache deploymentCache = Context
-        .getProcessEngineConfiguration()
-        .getDeploymentCache();
-    ProcessDefinitionEntity processDefinition = deploymentCache
-        .findDeployedProcessDefinitionById(processInstanceTree.getProcessDefinitionId());
+    for (ActivityInstantiationInstruction startInstruction : builder.getActivitiesToStartBefore()) {
+      ActivityImpl activity = processDefinition.findActivity(startInstruction.getActivityId());
 
-    // 1. collect executions to keep
-    List<ActivityInstantiationInstruction> activitiesToInstantiate = builder.getActivitiesToStartBefore();
-    Set<String> activityIdsToInstantiate = collectActivityIds(activitiesToInstantiate);
+      EnsureUtil.ensureNotNull("activity", activity);
 
-    Map<String, ActivityImpl> activityMapping = resolveActivities(processDefinition, activityIdsToInstantiate);
-    // TODO: add start after activities here
-    Map<String, String> activityAncestorMapping = getExistingAncestorExecutions(commandContext, treeLookup, activityMapping);
-    Set<String> ancestorsToKeep = new HashSet<String>(activityAncestorMapping.values());
+      // rebuild the mapping because the execution tree changes with every iteration
+      ActivityExecutionMapping mapping = new ActivityExecutionMapping(commandContext, processInstanceId);
 
-    // 2. determine top-most executions to remove
-    // TODO: the result should never contain the scope execution in which scope we want to
-    // start a new activity (e.g. process instance in a one-execution process)
-    Set<String> removableExecutions = getExecutionsToDelete(
-        commandContext,
-        treeLookup,
-        builder.getActivityInstancesToCancel(),
-        ancestorsToKeep);
+      // before instantiating an activity, two things have to be determined:
+      //
+      // activityStack:
+      // For the activity to instantiate, we build a stack of parent flow scopes
+      // for which no executions exist yet and that have to be instantiated
+      //
+      // scopeExecution:
+      // The execution of the first parent/ancestor flow scope that has an execution.
+      // This is typically the execution under which a new sub tree has to be created
 
-    // 3. remove executions
-    for (String executionId : removableExecutions) {
-      ExecutionEntity execution = commandContext.getDbEntityManager().getCachedEntity(ExecutionEntity.class, executionId);
-      // TODO: what would be an appropriate deletion reason? Should we also add there the activity instance
-      // id because of which this execution had to die?
-      boolean deleteExecutionItself = !ancestorsToKeep.contains(execution.getId());
+      List<PvmActivity> activitiesToInstantiate = new ArrayList<PvmActivity>();
+      activitiesToInstantiate.add(activity);
 
-      if (deleteExecutionItself) {
-        execution.deleteCascade("activity cancellation", true);
-      } else {
-        // TODO: should skip custom listeners
-        execution.cancelScope("activity cancellation");
-        // TODO: could the following be moved into execution.cancelScope?
-        execution.setActivity(null);
+      // builds the activity stack of flow scopes for which no executions exist yet
+      ScopeImpl flowScope = activity.getFlowScope();
+
+      Set<ExecutionEntity> flowScopeExecutions = mapping.getExecutions(flowScope);
+      while (flowScopeExecutions.isEmpty()) {
+        ActivityImpl flowScopeActivity = (ActivityImpl) flowScope;
+        activitiesToInstantiate.add(flowScopeActivity);
+
+        flowScope = flowScopeActivity.getFlowScope();
+        flowScopeExecutions = mapping.getExecutions(flowScope);
       }
-    }
 
-    // 4. start new
-    instantiateActivities(commandContext, activitiesToInstantiate, activityMapping, activityAncestorMapping);
+      if (flowScopeExecutions.size() > 1) {
+        throw new ProcessEngineException("Execution is ambiguous for activity " + flowScope);
+      }
 
-    return null;
-  }
+      Collections.reverse(activitiesToInstantiate);
+      ExecutionEntity scopeExecution = flowScopeExecutions.iterator().next();
 
-  // TODO: could be refactored into a container of instructions?!
-  protected Set<String> collectActivityIds(List<ActivityInstantiationInstruction> activitiesToInstantiate) {
-    Set<String> activityIds = new HashSet<String>();
-    for (ActivityInstantiationInstruction instruction : activitiesToInstantiate) {
-      activityIds.add(instruction.getActivityId());
-    }
-
-    return activityIds;
-  }
-
-  protected Map<String, ActivityImpl> resolveActivities(ProcessDefinitionEntity processDefinition, Set<String> activityIds) {
-    Map<String, ActivityImpl> activities = new HashMap<String, ActivityImpl>();
-
-    for (String activityId : activityIds) {
-      ActivityImpl activity = processDefinition.findActivity(activityId);
-      ensureNotNull("Cannot find activity " + activityId + " in process definition " + processDefinition.getId(),
-          "activityId", activity);
-      activities.put(activityId, activity);
-    }
-
-    return activities;
-  }
-
-  protected void instantiateActivities(CommandContext commandContext,
-      List<ActivityInstantiationInstruction> activitiesToInstantiate,
-      Map<String, ActivityImpl> activityMapping,
-      Map<String, String> ancestorMapping) {
-
-    for (ActivityInstantiationInstruction instantiationInstruction : activitiesToInstantiate) {
-      String activityId = instantiationInstruction.getActivityId();
-      ActivityImpl activity = activityMapping.get(activityId);
-      String ancestorExecutionId = ancestorMapping.get(activityId);
-
-      ExecutionEntity ancestor = commandContext.getDbEntityManager().getCachedEntity(ExecutionEntity.class, ancestorExecutionId);
-
-      // bottom up stack of activities to activity of ancestor execution
-      List<ActivityImpl> activityStackToInstantiate = getActivitiesToInstantiate(ancestor, activity);
-
-      // iterate in top down fashion and remove those list elements for which executions already exist
-      for (int i = activityStackToInstantiate.size() - 1; i >= 0; i--) {
-        ExecutionEntity childForActivity = getChildExecutionForActivity(ancestor, activityStackToInstantiate.get(i));
-
-        if (childForActivity != null) {
-          ancestor = childForActivity;
-          activityStackToInstantiate.remove(i);
+      // We have to make a distinction between
+      // - "regular" activities for which the activity stack can be instantiated and started
+      //   right away
+      // - interrupting or cancelling activities for which we have to ensure that
+      //   the interruption and cancellation takes place before we instantiate the activity stack
+      ActivityImpl topMostActivity = (ActivityImpl) activitiesToInstantiate.get(0);
+      boolean isCancelScope = false;
+      if (topMostActivity.isCancelScope()) {
+        if (activitiesToInstantiate.size() > 1) {
+          // this is in BPMN relevant if there is an interrupting event sub process.
+          // we have to distinguish between instantiation of the start event and any other activity.
+          // instantiation of the start event means interrupting behavior; instantiation
+          // of any other task means no interruption.
+          ActivityImpl initialActivity = (ActivityImpl) topMostActivity.getProperty(BpmnParse.PROPERTYNAME_INITIAL);
+          if (initialActivity == activitiesToInstantiate.get(1)) {
+            isCancelScope = true;
+          }
         } else {
-          break;
+          isCancelScope = true;
         }
       }
 
-      // TODO: this is quite a hack
-      List<PvmActivity> pvmActivities = new ArrayList<PvmActivity>(activityStackToInstantiate);
-      Collections.reverse(pvmActivities);
+      if (isCancelScope) {
+        ScopeImpl scopeToCancel = topMostActivity.getParentScope();
+        Set<ExecutionEntity> executionsToCancel = mapping.getExecutions(scopeToCancel);
 
-      ancestor.executeActivities(pvmActivities, instantiationInstruction.getVariables(), instantiationInstruction.getVariablesLocal());
+        if (!executionsToCancel.isEmpty()) {
+          if (executionsToCancel.size() > 1) {
+            throw new ProcessEngineException("Execution to cancel/interrupt is ambiguous for activity " + topMostActivity);
+          }
 
-    }
-  }
+          ExecutionEntity interruptedExecution = executionsToCancel.iterator().next();
 
-  protected ExecutionEntity getChildExecutionForActivity(ExecutionEntity execution, ActivityImpl activity) {
-    for (ExecutionEntity child : execution.getExecutions()) {
-      if (child.getActivity() == null) {
-        ExecutionEntity childExecution = getChildExecutionForActivity(child, activity);
-        if (childExecution != null) {
-          return childExecution;
+          // this distinguishes between interruption (e.g. event sub process) and
+          // cancellation (e.g. boundary event)
+          if (scopeToCancel == topMostActivity.getFlowScope()) {
+            // perform interruption
+            // TODO: the delete reason is a hack
+            interruptedExecution.cancelScope("Interrupting event sub process "+ topMostActivity + " fired.");
+            interruptedExecution.executeActivities(activitiesToInstantiate,
+                startInstruction.getVariables(), startInstruction.getVariablesLocal());
+          }
+          else {
+            // perform cancellation
+            // TODO: the delete reason is a hack
+            scopeExecution.cancelScope("Cancel scope activity " + topMostActivity + " executed.");
+            scopeExecution.executeActivities(activitiesToInstantiate,
+                startInstruction.getVariables(), startInstruction.getVariablesLocal());
+
+          }
+        } else {
+          // if there is nothing to cancel, the activity can simply be instantiated.
+          scopeExecution.executeActivitiesConcurrent(activitiesToInstantiate,
+              startInstruction.getVariables(), startInstruction.getVariablesLocal());
+
         }
       }
+      else {
+        // if the activity is not cancelling/interrupting, it can simply be instantiated as
+        // a concurrent child of the scopeExecution
+        scopeExecution.executeActivitiesConcurrent(activitiesToInstantiate,
+            startInstruction.getVariables(), startInstruction.getVariablesLocal());
 
-      if (child.getActivity() == activity) {
-        return child;
       }
+
     }
 
     return null;
   }
 
-  protected List<ActivityImpl> getActivitiesToInstantiate(ExecutionEntity ancestorExecution, ActivityImpl activity) {
-    // ancestorExecution.getActivity() can be null if it is the naked process instance (in which all other executions have been removed)
-//    ensureNotNull("ancestorActivity", ancestorExecution.getActivity());
-
-    List<ActivityImpl> bottomUpScopes = new ArrayList<ActivityImpl>();
-
-    ActivityImpl currentScopeActivity = activity;
-    while (currentScopeActivity != null && currentScopeActivity != ancestorExecution.getActivity()) {
-      bottomUpScopes.add(currentScopeActivity);
-      currentScopeActivity = currentScopeActivity.getParentScopeActivity();
-    }
-
-    return bottomUpScopes;
-  }
-
-  /**
-   * maps activity id -> ancestor execution id
-   */
-  protected Map<String, String> getExistingAncestorExecutions(CommandContext commandContext,
-      ActivityInstanceLookup activityInstanceTree, Map<String, ActivityImpl> activityInstantiations) {
-    Map<String, String> executionsToKeep = new HashMap<String, String>();
-
-    for (String activityId : activityInstantiations.keySet()) {
-      ActivityImpl activity = activityInstantiations.get(activityId);
-      ActivityInstance parentActivityInstance = findAncestorActivityInstance(activityInstanceTree, activity);
-      String rootExecution = getRootExecution(commandContext, parentActivityInstance);
-      executionsToKeep.put(activityId, rootExecution);
-    }
-
-    return executionsToKeep;
-  }
-
-  protected String getRootExecution(CommandContext commandContext, ActivityInstance activityInstance) {
-    String[] executionIds = activityInstance.getExecutionIds();
-
-    if (executionIds.length == 1) {
-      return executionIds[0];
-    }
-
-    Set<String> executionIdSet = new HashSet<String>();
-    Collections.addAll(executionIdSet, executionIds);
-
-    for (String executionId : executionIds) {
-      ExecutionEntity execution = commandContext
-          .getDbEntityManager()
-          .getCachedEntity(ExecutionEntity.class, executionId);
-
-      if (!executionIdSet.contains(execution.getParentId())) {
-        return executionId;
-      }
-    }
-
-    throw new ProcessEngineException("Could not determine parent execution; tree may be invalid");
-  }
-
-  protected ActivityInstance findAncestorActivityInstance(ActivityInstanceLookup tree, ActivityImpl activity) {
-    ActivityImpl parentScope = activity.getParentScopeActivity();
-
-    while (parentScope != null) {
-      Set<ActivityInstance> parentScopeInstances = tree.getInstancesForActivity(parentScope.getId());
-
-      if (parentScopeInstances == null || parentScopeInstances.isEmpty()) {
-        parentScope = parentScope.getParentScopeActivity();
-      } else if (parentScopeInstances.size() == 1) {
-        return parentScopeInstances.iterator().next();
-      } else {
-        throw new ProcessEngineException("Ambiguous parent activity instance for activity " + activity.getActivityId());
-      }
-    }
-
-    // if none found, the root is the parent
-    return tree.getRootInstance();
-  }
-
-  // TODO: break this into multiple parts/methods?
-  protected Set<String> getExecutionsToDelete(CommandContext commandContext, ActivityInstanceLookup treeLookup,
-      Set<String> activityInstanceCancellations, Set<String> executionsToKeep) {
-    Set<String> executionsToDelete = new HashSet<String>();
-
-    for (String instanceToCancel : activityInstanceCancellations) {
-      ActivityInstance instance = treeLookup.getInstance(instanceToCancel);
-      String currentExecutionId = getRootExecution(commandContext, instance);
-
-      ExecutionEntity topMostDeletableExecution = commandContext
-          .getDbEntityManager()
-          .getCachedEntity(ExecutionEntity.class, currentExecutionId);
-
-      boolean canRemoveParent = true;
-
-      // we can also remove the parent if there are no siblings that should not be removed
-      // TODO: improve the code complexity of this loop
-      while (canRemoveParent) {
-        ExecutionEntity parentExecution = topMostDeletableExecution.getParent();
-
-        if (parentExecution == null || executionsToKeep.contains(parentExecution.getId())) {
-          break;
-        }
-
-        List<ExecutionEntity> siblings = parentExecution.getExecutions();
-
-        for (ExecutionEntity sibling : siblings) {
-          if (sibling != topMostDeletableExecution && !executionsToDelete.contains(sibling.getId())) {
-            canRemoveParent = false;
-            break;
-          }
-        }
-
-        if (canRemoveParent) {
-          topMostDeletableExecution = parentExecution;
-
-          // remove sibling IDs from set of deletions because all siblings are contained
-          for (ExecutionEntity sibling : siblings) {
-            executionsToDelete.remove(sibling.getId());
-          }
-        }
-      }
-
-      executionsToDelete.add(topMostDeletableExecution.getId());
-    }
-
-    return executionsToDelete;
-  }
-
-  /**
-   * An index over activity instances by their id and their activity id
-   *
-   * @author Thorben Lindhauer
-   */
-  public class ActivityInstanceLookup {
-    protected ActivityInstance activityInstance;
-    protected Map<String, Set<ActivityInstance>> instancesForActivity = new HashMap<String, Set<ActivityInstance>>();
-    protected Map<String, ActivityInstance> instancesById = new HashMap<String, ActivityInstance>();
-
-    public ActivityInstanceLookup(ActivityInstance activityInstance) {
-      this.activityInstance = activityInstance;
-      initializeLookup(activityInstance);
-    }
-
-    protected void initializeLookup(ActivityInstance activityInstance) {
-      addInstanceForActivity(activityInstance.getActivityId(), activityInstance);
-      instancesById.put(activityInstance.getId(), activityInstance);
-
-      for (ActivityInstance child : activityInstance.getChildActivityInstances()) {
-        initializeLookup(child);
-      }
-    }
-
-    protected void addInstanceForActivity(String activityId, ActivityInstance activityInstance) {
-      Set<ActivityInstance> activityInstances = instancesForActivity.get(activityId);
-      if (activityInstances == null) {
-        activityInstances = new HashSet<ActivityInstance>();
-        instancesForActivity.put(activityId, activityInstances);
-      }
-      activityInstances.add(activityInstance);
-    }
-
-    public Set<ActivityInstance> getInstancesForActivity(String activityId) {
-      return instancesForActivity.get(activityId);
-    }
-
-    public ActivityInstance getInstance(String activityInstanceId) {
-      return instancesById.get(activityInstanceId);
-    }
-
-    public ActivityInstance getRootInstance() {
-      return activityInstance;
-    }
-
-
-  }
 
 }

@@ -21,7 +21,7 @@ import java.util.Set;
 
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.cmd.ModifyProcessInstanceCmd;
-import org.camunda.bpm.engine.impl.cmd.ModifyProcessInstanceCmd2;
+import org.camunda.bpm.engine.impl.cmd.ModifyProcessInstanceCmd;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.runtime.ProcessInstanceModificationBuilder;
@@ -87,7 +87,7 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
   }
 
   public void execute() {
-    ModifyProcessInstanceCmd2 cmd = new ModifyProcessInstanceCmd2(this);
+    ModifyProcessInstanceCmd cmd = new ModifyProcessInstanceCmd(this);
     if (commandExecutor != null) {
       commandExecutor.execute(cmd);
     } else {

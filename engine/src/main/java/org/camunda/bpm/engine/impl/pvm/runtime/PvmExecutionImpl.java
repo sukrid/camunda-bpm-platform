@@ -306,7 +306,11 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   }
 
   /**
-   * The most deeply nested activity is the last element in the list
+   * Instantiates the given activity stack under this execution.
+   * Sets the variables for the execution responsible to execute the most deeply nested
+   * activity.
+   *
+   * @param activityStack The most deeply nested activity is the last element in the list
    */
   public void executeActivitiesConcurrent(List<PvmActivity> activityStack,
       Map<String, Object> variables, Map<String, Object> localVariables) {
@@ -315,8 +319,56 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
       return;
     }
 
+    // The following covers the three cases in which a concurrent execution may be created
+    // (this execution is the root in each scenario):
+    // (1) A compacted tree:
+    //
+    // Before:               After:
+    //       -------               -------
+    //       |  e1  |              |  e1 |
+    //       -------               -------
+    //                             /     \
+    //                         -------  -------
+    //                         |  e2 |  |  e3 |
+    //                         -------  -------
+    //
+    // e2 replaces e1; e3 is the new root for the activity stack to instantiate
+    //
+    //
+    // (2) A single child that is a scope execution
+    // Before:               After:
+    //       -------               -------
+    //       |  e1 |               |  e1 |
+    //       -------               -------
+    //          |                  /     \
+    //       -------           -------  -------
+    //       |  e2 |           |  e3 |  |  e4 |
+    //       -------           -------  -------
+    //                            |
+    //                         -------
+    //                         |  e2 |
+    //                         -------
+    //
+    //
+    // e3 is created and is concurrent;
+    // e4 is the new root for the activity stack to instantiate
+    //
+    //
+    // (3) A single child that is a scope execution
+    // Before:               After:
+    //       -------                    ---------
+    //       |  e1 |                    |   e1  |
+    //       -------                    ---------
+    //       /     \                   /    |    \
+    //  -------    -------      -------  -------  -------
+    //  |  e2 | .. |  eX |      |  e2 |..|  eX |  | eX+1|
+    //  -------    -------      -------  -------  -------
+    //
+    // eX+1 is concurrent and the new root for the activity stack to instantiate
+
     List<? extends PvmExecutionImpl> children = getExecutions();
     if (children.isEmpty()) {
+      // (1)
       PvmExecutionImpl replacingExecution = createExecution();
       replacingExecution.setConcurrent(true);
       replacingExecution.setScope(false);
@@ -325,6 +377,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
     }
     else if (children.size() == 1) {
+      // (2)
       PvmExecutionImpl child = children.get(0);
 
       PvmExecutionImpl concurrentReplacingExecution = createExecution();
@@ -334,28 +387,23 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
       children.remove(child);
     }
 
+    // (1), (2), and (3)
     PvmExecutionImpl propagatingExecution = createExecution();
     propagatingExecution.setConcurrent(true);
     propagatingExecution.setScope(false);
 
     propagatingExecution.executeActivities(activityStack, variables, localVariables);
 
-
-
-//    if (this.getActivity() == null) {
-//      // this covers the case in which all executions have been removed from the process instance
-//      // TODO: is this always correct? What about concurrent roots? Can it happen that we call this with concurrent roots?
-//      setActivity(topMostActivity);
-//      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
-//    } else if (this.getActivity().getScope() == topMostActivity.getScope()) {
-//      // TODO: perhaps the list that is the parameter of this method can be List<ActivityImpl>?
-//      this.nextActivity = (ActivityImpl) topMostActivity;
-//      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK_CONCURRENT);
-//    } else {
-//      performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK);
-//    }
   }
 
+  /**
+   * Instantiates the given activity stack. Uses this execution to execute the
+   * highest activity in the stack.
+   * Sets the variables for the execution responsible to execute the most deeply nested
+   * activity.
+   *
+   * @param activityStack The most deeply nested activity is the last element in the list
+   */
   public void executeActivities(List<PvmActivity> activityStack,
       Map<String, Object> variables, Map<String, Object> localVariables) {
 
